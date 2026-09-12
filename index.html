@@ -8,6 +8,20 @@
 <meta name="apple-mobile-web-app-title" content="Placar da Rotina">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script>
+  window.__FB_CONFIG={
+    apiKey:"AIzaSyDuBK1d789M465WRVPQBdjYeNwg4odSh0k",
+    authDomain:"placar-rotina.firebaseapp.com",
+    projectId:"placar-rotina",
+    storageBucket:"placar-rotina.firebasestorage.app",
+    messagingSenderId:"634374024737",
+    appId:"1:634374024737:web:9abad903670092b3137d60"
+  };
+  try{ firebase.initializeApp(window.__FB_CONFIG); window.__fb=true; }catch(e){ window.__fb=false; }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap">
@@ -77,6 +91,9 @@
 
   .grid{display:grid;grid-template-columns:1.55fr 1fr;gap:22px;margin-top:22px;align-items:start}
   @media (max-width:820px){.grid{grid-template-columns:1fr}}
+  .grid.gestor-only{grid-template-columns:1fr}
+  .gestor-only #checkinCard{display:none}
+  .gate-gestor{margin-top:18px;text-align:center}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);overflow:hidden}
   .card-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
   .card-head h2{font-size:1.05rem;font-weight:700}
@@ -263,6 +280,7 @@
         <h2>Quem é você hoje?</h2>
         <p>Escolha seu nome para registrar o check-in da rotina e entrar no placar da equipe.</p>
         <div class="pick-grid" id="pickGrid"></div>
+        <div class="gate-gestor"><button class="ghost-btn" id="gestorBtn" type="button">Entrar como Gestor</button></div>
       </div>
       <div class="gate-code hide" id="gateCode">
         <h2 id="gateCodeTitle">Seu código de acesso</h2>
@@ -274,13 +292,23 @@
         <div class="save-note" id="gateCodeNote" style="margin-top:8px"></div>
         <button class="ghost-btn" id="gateCodeBack" type="button" style="margin-top:14px">Voltar</button>
       </div>
+      <div class="gate-code hide" id="gestorGate">
+        <h2 id="gestorGateTitle">Entrar como Gestor</h2>
+        <p id="gestorGateSub">Digite a senha de gestor.</p>
+        <div class="add-row">
+          <input type="password" id="gestorPin" placeholder="Senha de gestor" autocomplete="off">
+          <button class="add-btn" id="gestorEnter" type="button">Entrar</button>
+        </div>
+        <div class="save-note" id="gestorNote" style="margin-top:8px"></div>
+        <button class="ghost-btn" id="gestorBack" type="button" style="margin-top:14px">Voltar</button>
+      </div>
     </div>
   </section>
 
   <div class="grid hide" id="app">
 
     <!-- LEFT: aba do corretor -->
-    <section class="card">
+    <section class="card" id="checkinCard">
       <div class="card-head">
         <div><div class="eyebrow">Check-in de hoje</div><h2>Rotina da manhã</h2></div>
       </div>
@@ -544,14 +572,45 @@ function gateCodeEnter(){
 function loginAs(id){
   const c=state.team.find(x=>x.id===id);
   state.who=id; lsSet(LS_WHO,id); lsSet(LS_AUTH, (c&&c.pin)?c.pin:"free");
-  $("#gate").classList.add("hide"); $("#app").classList.remove("hide");
+  $("#gate").classList.add("hide"); $("#app").classList.remove("hide"); $("#app").classList.remove("gestor-only");
   buildCheckin(); renderAll();
 }
 function logout(){
   clearInterval(quizTimer); state.quiz=null;
   state.who=null; lsSet(LS_WHO,""); lsSet(LS_AUTH,"");
+  state.isManager=false; lsSet(LS_MGR,"");
   hideGateCode();
+  var g=$("#gestorGate"); if(g) g.classList.add("hide");
+  var gp=$("#gatePick"); if(gp) gp.classList.remove("hide");
+  $("#app").classList.remove("gestor-only");
+  refreshMgrUI();
   $("#app").classList.add("hide"); $("#gate").classList.remove("hide");
+}
+function openGestorGate(){
+  $("#gatePick").classList.add("hide"); $("#gateCode").classList.add("hide");
+  $("#gestorGate").classList.remove("hide");
+  var novo=!state.pin;
+  $("#gestorGateTitle").textContent=novo?"Criar senha de gestor":"Entrar como Gestor";
+  $("#gestorGateSub").textContent=novo?"Defina a senha que só voce vai usar para gerenciar a equipe.":"Digite a senha de gestor.";
+  $("#gestorNote").textContent=""; var i=$("#gestorPin"); i.value=""; i.focus();
+}
+function gestorBack(){ $("#gestorGate").classList.add("hide"); $("#gatePick").classList.remove("hide"); }
+async function gestorEnter(){
+  var val=$("#gestorPin").value.trim();
+  if(!state.pin){
+    if(val.length<3){ $("#gestorNote").textContent="Use ao menos 3 caracteres."; return; }
+    state.pin=val; await saveConfig(); enterGestor(val);
+  } else {
+    if(val===state.pin) enterGestor(val); else $("#gestorNote").textContent="Senha incorreta.";
+  }
+}
+function enterGestor(pin){
+  state.isManager=true; state.who=null; lsSet(LS_MGR, pin||state.pin||"");
+  $("#gestorGate").classList.add("hide");
+  $("#gate").classList.add("hide");
+  $("#app").classList.remove("hide"); $("#app").classList.add("gestor-only");
+  refreshMgrUI(); renderTeamPanel(); $("#teamPanel").classList.remove("hide");
+  renderAll();
 }
 
 /* ============ CHECK-IN ============ */
@@ -960,6 +1019,7 @@ function becomeManager(pin){
   refreshMgrUI(); renderTeamPanel();
 }
 function exitManager(){
+  if(!state.who){ logout(); return; }
   state.isManager=false; lsSet(LS_MGR,"");
   $("#teamPanel").classList.add("hide"); $("#videoEdit").classList.add("hide");
   refreshMgrUI();
@@ -978,6 +1038,10 @@ function bootUI(){
   $("#gateCodeEnter").addEventListener("click",gateCodeEnter);
   $("#gateCodeInput").addEventListener("keydown",e=>{ if(e.key==="Enter") gateCodeEnter(); });
   $("#gateCodeBack").addEventListener("click",hideGateCode);
+  $("#gestorBtn").addEventListener("click",openGestorGate);
+  $("#gestorEnter").addEventListener("click",gestorEnter);
+  $("#gestorPin").addEventListener("keydown",e=>{ if(e.key==="Enter") gestorEnter(); });
+  $("#gestorBack").addEventListener("click",gestorBack);
   $("#submitBtn").addEventListener("click",submit);
   $("#mgrBtn").addEventListener("click",openMgr);
   $("#mgrEnter").addEventListener("click",mgrEnter);
@@ -999,18 +1063,32 @@ function restoreLogin(){
     state.who=c.id; $("#gate").classList.add("hide"); $("#app").classList.remove("hide"); buildCheckin(); renderAll();
   }
 }
+function makeFbAdapter(fs){
+  const wrapDoc=ref=>({
+    path:ref.path,
+    get:()=>ref.get().then(s=>({exists:s.exists,data:()=>s.data()})),
+    set:d=>ref.set(d),
+    update:d=>ref.update(d),
+    delete:()=>ref.delete(),
+    onSnapshot:(n,e)=>ref.onSnapshot(s=>n({exists:s.exists,data:()=>s.data()}), e||function(){})
+  });
+  const wrapCol=ref=>({
+    onSnapshot:(n,e)=>ref.onSnapshot(qs=>{ const docs=[]; qs.forEach(d=>docs.push({id:d.id,exists:true,data:()=>d.data()})); n({docs}); }, e||function(){}),
+    get:()=>ref.get().then(qs=>{ const docs=[]; qs.forEach(d=>docs.push({id:d.id,exists:true,data:()=>d.data()})); return {docs}; })
+  });
+  return { doc:p=>wrapDoc(fs.doc(p)), collection:p=>wrapCol(fs.collection(p)) };
+}
 async function connectDB(){
-  const c=window.claude;
-  if(!c||!c.use){ startLocal(); return; }
-  let db=null; try{ db=await c.use("db"); }catch(e){ db=null; }
-  if(!db){ startLocal(); return; }
-  state.db=db;
-  $("#footMode").textContent="Placar compartilhado ao vivo entre a equipe.";
-  db.doc("config/app").onSnapshot(snap=>{ applyConfig(snap.exists?snap.data():null); }, ()=>{});
-  db.collection("checkins").onSnapshot(snap=>{
+  if(typeof firebase==="undefined" || !window.__fb){ startLocal(); return; }
+  try{ await firebase.auth().signInAnonymously(); }catch(e){}
+  let fs; try{ fs=firebase.firestore(); }catch(e){ startLocal(); return; }
+  state.db=makeFbAdapter(fs);
+  $("#footMode").textContent="Placar compartilhado ao vivo (Firebase).";
+  state.db.doc("config/app").onSnapshot(snap=>{ applyConfig(snap.exists?snap.data():null); }, ()=>{});
+  state.db.collection("checkins").onSnapshot(snap=>{
     const map={}; snap.docs.forEach(d=>{ if(d.exists){ const v=d.data(); if(v) map[d.id]=v; } });
     state.docs=map; if(state.who) renderAll();
-  }, ()=>{ $("#rankNote").textContent="Placar temporariamente indisponível."; });
+  }, ()=>{ $("#rankNote").textContent="Placar indisponível. Verifique as regras do Firestore e o login anônimo."; });
 }
 function startLocal(){
   state.docs=localStore();
