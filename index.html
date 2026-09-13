@@ -440,11 +440,16 @@
           <p class="emp-hint">1 ou 2 destas entram no quiz por dia. Cadastre só lançamentos NA PLANTA. Quando o projeto ficar pronto, exclua.</p>
           <div id="empList"></div>
           <div class="ai-box">
-            <div class="ai-title">Importar perguntas geradas pela IA</div>
-            <p class="emp-hint" style="margin:0 0 6px">Envie o book do empreendimento para o Aritan no chat. Ele devolve as perguntas com pegadinha em um código. Cole o código aqui e clique em Importar.</p>
-            <textarea id="aiImport" placeholder="Cole aqui o código das perguntas (JSON) que o Aritan te enviar"></textarea>
-            <div class="add-row"><button class="add-btn" id="aiImportBtn" type="button">Importar perguntas</button></div>
+            <div class="ai-title">IA: gerar perguntas a partir de um site</div>
+            <input type="text" id="aiUrl" placeholder="URL da IA (endpoint do seu servidor) — configure 1 vez">
+            <input type="text" id="aiSite" placeholder="Cole o link da página do empreendimento">
+            <div class="add-row"><button class="add-btn" id="aiFetchBtn" type="button">Buscar perguntas com IA</button></div>
             <div class="save-note" id="aiNote"></div>
+            <details style="margin-top:8px">
+              <summary style="font-size:0.82rem;color:var(--ink-faint);cursor:pointer">Ou colar perguntas em código (JSON)</summary>
+              <textarea id="aiImport" placeholder="Cole aqui o código das perguntas (JSON)" style="margin-top:8px"></textarea>
+              <div class="add-row"><button class="add-btn" id="aiImportBtn" type="button">Importar</button></div>
+            </details>
           </div>
           <div class="emp-form">
             <input type="text" id="empQ" placeholder="Pergunta (ex: Qual a entrada facilitada do lançamento X?)">
@@ -1021,6 +1026,27 @@ function renderTeamPanel(){
   });
   renderEmpList();
 }
+async function aiFetch(){
+  const url=($("#aiUrl").value||"").trim(), site=($("#aiSite").value||"").trim(), note=$("#aiNote");
+  if(!url){ note.textContent="Configure a URL da IA (endpoint) primeiro."; return; }
+  if(!site){ note.textContent="Cole o link da página do empreendimento."; return; }
+  if(url!==state.aiUrl){ state.aiUrl=url; try{ await saveConfig(); }catch(e){} }
+  note.textContent="Buscando na página e gerando... aguarde.";
+  try{
+    const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:site,n:3})});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    let data=await r.json();
+    if(data&&data.perguntas) data=data.perguntas;
+    if(!Array.isArray(data)) data=[data];
+    const ok=[];
+    for(const q of data){ if(q&&typeof q.q==="string"&&Array.isArray(q.o)&&q.o.length>=3){ ok.push({q:q.q,o:[String(q.o[0]),String(q.o[1]),String(q.o[2])],c:(typeof q.c==="number"?q.c:0),f:(q.f||"Estude o material do empreendimento.")}); } }
+    if(!ok.length){ note.textContent="A IA não retornou perguntas válidas. Verifique o endpoint."; return; }
+    state.emp=(state.emp||[]).concat(ok); try{ await saveConfig(); }catch(e){}
+    $("#aiSite").value="";
+    note.textContent=ok.length+" pergunta(s) criada(s) do site. Já entram no quiz.";
+    if(!state.db) renderEmpList();
+  }catch(e){ note.textContent="Não consegui buscar. Verifique a URL da IA / CORS. ("+e.message+")"; }
+}
 async function importEmp(){
   const raw=($("#aiImport").value||"").trim(); const note=$("#aiNote");
   if(!raw){ note.textContent="Cole o código das perguntas primeiro."; return; }
@@ -1212,6 +1238,7 @@ function bootUI(){
   $("#savePinBtn").addEventListener("click",changePin);
   $("#empAdd").addEventListener("click",addEmp);
   $("#aiImportBtn").addEventListener("click",importEmp);
+  $("#aiFetchBtn").addEventListener("click",aiFetch);
   $("#addBtn").addEventListener("click",addCorretor);
   $("#newName").addEventListener("keydown",e=>{ if(e.key==="Enter") addCorretor(); });
   $("#videoEditBtn").addEventListener("click",()=>{ const e=$("#videoEdit"); e.classList.toggle("hide"); if(!e.classList.contains("hide")) $("#videoInput").value=state.video||""; });
