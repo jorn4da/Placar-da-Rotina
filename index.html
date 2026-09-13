@@ -187,6 +187,17 @@
   textarea{resize:vertical;min-height:64px}
   textarea:focus,input[type=text]:focus,input[type=password]:focus{border-color:var(--brand);outline:none}
   .mgr-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .emp-section{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .emp-section h3{font-family:var(--font-title);font-weight:700;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-soft);margin-bottom:4px}
+  .emp-hint{font-size:0.78rem;color:var(--ink-faint);margin:0 0 10px}
+  .emp-empty{font-size:0.82rem;color:var(--ink-faint);padding:6px 0}
+  .emp-item{display:flex;gap:8px;align-items:flex-start;border-top:1px solid var(--line);padding:8px 0}
+  .emp-item:first-child{border-top:none}
+  .emp-main{flex:1;min-width:0}
+  .emp-q{font-size:0.86rem;font-weight:500;color:var(--ink)}
+  .emp-ok{font-size:0.76rem;color:var(--success);margin-top:2px}
+  .emp-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .emp-form select{font-family:var(--font-body);font-size:0.9rem;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-md);padding:11px 12px}
   .add-col{display:flex;flex-direction:column;gap:8px;margin-top:12px}
   .add-col .add-row{margin-top:0}
   .wa-btn{margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;font-family:var(--font-title);font-weight:700;font-size:0.84rem;padding:11px;border-radius:var(--radius-md);cursor:pointer}
@@ -390,6 +401,23 @@
           <input type="password" id="newPin" placeholder="Nova senha de gestor" autocomplete="off">
           <button class="add-btn" id="savePinBtn" type="button">Salvar</button>
         </div>
+        <div class="emp-section">
+          <h3>Perguntas de empreendimento (na planta)</h3>
+          <p class="emp-hint">1 ou 2 destas entram no quiz por dia. Cadastre só lançamentos NA PLANTA. Quando o projeto ficar pronto, exclua.</p>
+          <div id="empList"></div>
+          <div class="emp-form">
+            <input type="text" id="empQ" placeholder="Pergunta (ex: Qual a entrada facilitada do lançamento X?)">
+            <input type="text" id="empA" placeholder="Opção A">
+            <input type="text" id="empB" placeholder="Opção B">
+            <input type="text" id="empC" placeholder="Opção C">
+            <div class="add-row">
+              <select id="empCorrect"><option value="0">Correta: A</option><option value="1">Correta: B</option><option value="2">Correta: C</option></select>
+              <button class="add-btn" id="empAdd" type="button">Adicionar pergunta</button>
+            </div>
+            <input type="text" id="empF" placeholder="Explicação (por que é a correta)">
+            <div class="save-note" id="empNote"></div>
+          </div>
+        </div>
         <div class="mgr-foot">
           <button class="ghost-btn" id="changePinBtn" type="button">Trocar senha</button>
           <button class="ghost-btn" id="mgrExit" type="button">Sair do modo gestor</button>
@@ -496,6 +524,7 @@ const QUIZ = [
 
 /* ============ HELPERS ============ */
 const $ = s => document.querySelector(s);
+function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"\x27]/g,function(m){return ({"&":"&amp;","<":"&lt;",">":"&gt;","\x22":"&quot;","\x27":"&#39;"})[m];}); }
 const nomeById = id => (state.team.find(c=>c.id===id)||{}).nome || id;
 function iniciais(nome){ const p=(nome||"").trim().split(/\s+/); return (((p[0]||"")[0]||"")+((p[1]||"")[0]||"")).toUpperCase(); }
 function primeiro(nome){ return (nome||"").trim().split(/\s+/)[0]||nome; }
@@ -503,10 +532,21 @@ function pad(n){ return n<10?"0"+n:""+n; }
 function fmt(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 function weekStartStr(){ const x=new Date(); x.setHours(0,0,0,0); const off=(x.getDay()+6)%7; x.setDate(x.getDate()-off); return fmt(x); }
 function dayOfYear(d){ const s=new Date(d.getFullYear(),0,0); return Math.floor((d-s)/86400000); }
-function todayQuestions(){
-  const start=dayOfYear(new Date()); const out=[];
-  for(let i=0;i<QUIZ_COUNT && i<QUIZ.length;i++){ out.push(QUIZ[(start+i)%QUIZ.length]); }
+function pickN(arr,n,seed){
+  if(!arr||arr.length===0) return [];
+  if(arr.length<=n) return arr.slice();
+  const pool=arr.map((_,i)=>i), out=[]; let s=(seed>>>0)||1;
+  while(out.length<n && pool.length){ s=(s*9301+49297)%233280; const r=Math.floor(s/233280*pool.length); out.push(arr[pool.splice(r,1)[0]]); }
   return out;
+}
+function todayQuestions(){
+  const start=dayOfYear(new Date());
+  const emp=state.emp||[];
+  const nEmp = emp.length>=2 ? (1+(start%2)) : emp.length; // 1 ou 2 de empreendimento quando houver
+  const empPicked=pickN(emp,nEmp,start+7);
+  const nGen=Math.max(1, QUIZ_COUNT-empPicked.length);
+  const gen=[]; for(let i=0;i<nGen && i<QUIZ.length;i++){ gen.push(QUIZ[(start+i)%QUIZ.length]); }
+  return pickN(empPicked.concat(gen), empPicked.length+gen.length, start+3);
 }
 function slug(n){ return (n||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,20)||"c"; }
 function ytId(url){ if(!url) return ""; const m=String(url).match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([\w-]{11})/); return m?m[1]:""; }
@@ -522,7 +562,7 @@ function localSave(o){ try{ localStorage.setItem(LS_LOCAL,JSON.stringify(o)); }c
 
 /* ============ STATE ============ */
 const state = {
-  who:null, db:null, docs:{}, team:DEFAULT_TEAM.slice(), video:"", pin:"", isManager:false,
+  who:null, db:null, docs:{}, team:DEFAULT_TEAM.slice(), video:"", pin:"", isManager:false, emp:[],
   selectedTasks:new Set(), quiz:null, pend:"", email:"", dl:null,
 };
 
@@ -669,13 +709,13 @@ function renderQuizQuestion(){
       <span class="qtimer" id="qTimer">${QUIZ_SECONDS}s</span>
     </div>
     <div class="qbar"><div class="qbar-fill" id="qBar"></div></div>
-    <div class="q">${Q.q}</div>
+    <div class="q">${escapeHtml(Q.q)}</div>
     <div class="opts" id="opts"></div>`;
   const wrap=qz.querySelector("#opts");
   Q.o.forEach((op,i)=>{
     const b=document.createElement("button");
     b.type="button"; b.className="opt";
-    b.innerHTML=`<span class="letter">${letters[i]}</span><span>${op}</span>`;
+    b.innerHTML=`<span class="letter">${letters[i]}</span><span>${escapeHtml(op)}</span>`;
     b.addEventListener("click",()=>answerQuiz(i));
     wrap.appendChild(b);
   });
@@ -740,13 +780,13 @@ function finishQuiz(){
     </div>`;
   const sl=qz.querySelector("#studyList"), letters=["A","B","C","D"];
   q.answers.forEach((a,n)=>{
-    const suaTxt = a.escolha<0 ? "Não respondida" : (letters[a.escolha]+") "+a.opcoes[a.escolha]);
-    const okTxt = letters[a.correta]+") "+a.opcoes[a.correta];
+    const suaTxt = a.escolha<0 ? "Não respondida" : (letters[a.escolha]+") "+escapeHtml(a.opcoes[a.escolha]));
+    const okTxt = letters[a.correta]+") "+escapeHtml(a.opcoes[a.correta]);
     const div=document.createElement("div"); div.className="study-item";
-    div.innerHTML=`<div class="study-q">${n+1}. ${a.q}</div>
+    div.innerHTML=`<div class="study-q">${n+1}. ${escapeHtml(a.q)}</div>
       <div class="study-line"><span>Sua resposta:</span> ${suaTxt}</div>
       <div class="study-line ok"><span>Correta:</span> ${okTxt}</div>
-      <div class="study-expl">${a.expl}</div>`;
+      <div class="study-expl">${escapeHtml(a.expl)}</div>`;
     sl.appendChild(div);
   });
   qz.querySelector("#emailInput").addEventListener("input",e=>{ state.email=e.target.value.trim(); lsSet("placar_email_"+state.who, state.email); });
@@ -938,6 +978,36 @@ function renderTeamPanel(){
     });
     item.appendChild(row); item.appendChild(edit); list.appendChild(item);
   });
+  renderEmpList();
+}
+function renderEmpList(){
+  const el=$("#empList"); if(!el) return; el.innerHTML="";
+  const arr=state.emp||[]; const L=["A","B","C","D"];
+  if(!arr.length){ el.innerHTML='<div class="emp-empty">Nenhuma pergunta de empreendimento cadastrada.</div>'; return; }
+  arr.forEach((q,i)=>{
+    const d=document.createElement("div"); d.className="emp-item";
+    d.innerHTML=`<div class="emp-main"><div class="emp-q">${i+1}. ${escapeHtml(q.q)}</div><div class="emp-ok">Correta: ${L[q.c]}) ${escapeHtml((q.o&&q.o[q.c])||"")}</div></div>`;
+    const rm=document.createElement("button"); rm.type="button"; rm.className="del-btn"; rm.textContent="Excluir";
+    let armed=false,t=null;
+    rm.addEventListener("click",()=>{ if(!armed){armed=true;rm.classList.add("armed");rm.textContent="Confirmar";t=setTimeout(()=>{armed=false;rm.classList.remove("armed");rm.textContent="Excluir";},2500);} else {clearTimeout(t);removeEmp(i);} });
+    d.appendChild(rm); el.appendChild(d);
+  });
+}
+async function addEmp(){
+  const q=$("#empQ").value.trim(), a=$("#empA").value.trim(), b=$("#empB").value.trim(), c=$("#empC").value.trim();
+  const corr=parseInt($("#empCorrect").value,10)||0, f=$("#empF").value.trim(); const note=$("#empNote");
+  if(!q||!a||!b||!c){ note.textContent="Preencha a pergunta e as 3 opções."; return; }
+  state.emp=(state.emp||[]).concat([{q:q, o:[a,b,c], c:corr, f:(f||"Estude o material do empreendimento.")}]);
+  await saveConfig();
+  $("#empQ").value="";$("#empA").value="";$("#empB").value="";$("#empC").value="";$("#empF").value="";$("#empCorrect").value="0";
+  note.textContent="Pergunta adicionada.";
+  if(!state.db) renderEmpList();
+  setTimeout(()=>{ note.textContent=""; },1400);
+}
+async function removeEmp(i){
+  state.emp=(state.emp||[]).filter((_,idx)=>idx!==i);
+  await saveConfig();
+  if(!state.db) renderEmpList();
 }
 async function setCorretor(id,code,fone){
   state.team=state.team.map(c=>{ if(c.id!==id) return c; const n=Object.assign({},c); n.fone=(fone||c.fone||""); if(code) n.pin=hashCode(code); return n; });
@@ -986,7 +1056,7 @@ async function saveVideo(){
 
 /* ============ CONFIG PERSIST ============ */
 async function saveConfig(){
-  const cfg={ team:state.team, video:state.video, pin:state.pin||"", updatedAt:Date.now() };
+  const cfg={ team:state.team, video:state.video, pin:state.pin||"", empreendimentos:(state.emp||[]), updatedAt:Date.now() };
   if(state.db){
     try{ await state.db.doc("config/app").set(cfg); }
     catch(e){
@@ -1001,10 +1071,11 @@ function applyConfig(d){
   state.team=(Array.isArray(d&&d.team)&&d.team.length)?d.team:DEFAULT_TEAM.slice();
   state.video=(d&&d.video)||"";
   state.pin=(d&&d.pin)||"";
+  state.emp=(d&&Array.isArray(d.empreendimentos))?d.empreendimentos:[];
   // restaura o modo gestor neste aparelho, se a senha bater
   if(state.pin && lsGet(LS_MGR,"")===state.pin) state.isManager=true;
   refreshMgrUI();
-  renderGate(); renderTeamPanel(); renderVideo();
+  renderGate(); renderTeamPanel(); renderVideo(); renderEmpList();
   if(state.who){
     $("#myAv").textContent=iniciais(nomeById(state.who));
     $("#myName").textContent=nomeById(state.who);
@@ -1076,6 +1147,7 @@ function bootUI(){
   $("#mgrExit").addEventListener("click",exitManager);
   $("#changePinBtn").addEventListener("click",()=>$("#changePinRow").classList.toggle("hide"));
   $("#savePinBtn").addEventListener("click",changePin);
+  $("#empAdd").addEventListener("click",addEmp);
   $("#addBtn").addEventListener("click",addCorretor);
   $("#newName").addEventListener("keydown",e=>{ if(e.key==="Enter") addCorretor(); });
   $("#videoEditBtn").addEventListener("click",()=>{ const e=$("#videoEdit"); e.classList.toggle("hide"); if(!e.classList.contains("hide")) $("#videoInput").value=state.video||""; });
