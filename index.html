@@ -441,7 +441,6 @@
           <div id="empList"></div>
           <div class="ai-box">
             <div class="ai-title">IA: gerar perguntas a partir de um site</div>
-            <div id="aiUrlWrap"><input type="text" id="aiUrl" placeholder="URL da IA (endpoint do seu servidor) — configure 1 vez"></div>
             <input type="text" id="aiSite" placeholder="Cole o link da página do empreendimento">
             <div class="add-row"><button class="add-btn" id="aiFetchBtn" type="button">Buscar perguntas com IA</button></div>
             <div class="save-note" id="aiNote"></div>
@@ -1033,11 +1032,9 @@ function renderTeamPanel(){
   renderEmpList();
 }
 async function aiFetch(){
-  const typed=($("#aiUrl")&&$("#aiUrl").value||"").trim();
-  const url=(AI_ENDPOINT||typed||state.aiUrl||"").trim(), site=($("#aiSite").value||"").trim(), note=$("#aiNote");
-  if(!url){ note.textContent="Configure a URL da IA (endpoint) primeiro."; return; }
+  const url=(AI_ENDPOINT||state.aiUrl||"").trim(), site=($("#aiSite").value||"").trim(), note=$("#aiNote");
+  if(!url){ note.textContent="Endpoint da IA não configurado."; return; }
   if(!site){ note.textContent="Cole o link da página do empreendimento."; return; }
-  if(!AI_ENDPOINT && typed && typed!==state.aiUrl){ state.aiUrl=typed; try{ await saveConfig(); }catch(e){} }
   note.textContent="Buscando na página e gerando... aguarde.";
   try{
     const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url:site,n:3})});
@@ -1075,8 +1072,6 @@ async function importEmp(){
 }
 function renderEmpList(){
   const el=$("#empList"); if(!el) return;
-  const wrap=$("#aiUrlWrap"); if(wrap) wrap.style.display = AI_ENDPOINT ? "none" : "";
-  const au=$("#aiUrl"); if(au && !AI_ENDPOINT && document.activeElement!==au) au.value=state.aiUrl||"";
   el.innerHTML="";
   const arr=state.emp||[]; const L=["A","B","C","D"];
   if(!arr.length){ el.innerHTML='<div class="emp-empty">Nenhuma pergunta de empreendimento cadastrada.</div>'; return; }
