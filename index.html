@@ -207,6 +207,9 @@
   .emp-main{flex:1;min-width:0}
   .emp-q{font-size:0.86rem;font-weight:500;color:var(--ink)}
   .emp-ok{font-size:0.76rem;color:var(--success);margin-top:2px}
+  .emp-opt{font-size:0.8rem;color:var(--ink-faint);margin-top:3px}
+  .emp-opt-ok{color:var(--success);font-weight:600}
+  .emp-f{font-size:0.74rem;color:var(--ink-faint);margin-top:5px;font-style:italic}
   .emp-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
   .emp-form select{font-family:var(--font-body);font-size:0.9rem;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-md);padding:11px 12px}
   .ai-box{margin-top:12px;padding:12px;border:1px dashed var(--line-strong);border-radius:var(--radius-md);display:flex;flex-direction:column;gap:8px}
@@ -1031,6 +1034,15 @@ function renderTeamPanel(){
   });
   renderEmpList();
 }
+function shuffleOpts(it){
+  const correct=it.o[it.c];
+  const idx=[0,1,2];
+  for(let i=idx.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); const t=idx[i]; idx[i]=idx[j]; idx[j]=t; }
+  it.o=idx.map(k=>it.o[k]);
+  it.c=it.o.indexOf(correct);
+  if(it.c<0) it.c=0;
+  return it;
+}
 async function aiFetch(){
   const url=(AI_ENDPOINT||state.aiUrl||"").trim(), site=($("#aiSite").value||"").trim(), note=$("#aiNote");
   if(!url){ note.textContent="Endpoint da IA não configurado."; return; }
@@ -1043,7 +1055,7 @@ async function aiFetch(){
     if(data&&data.perguntas) data=data.perguntas;
     if(!Array.isArray(data)) data=[data];
     const ok=[];
-    for(const q of data){ if(q&&typeof q.q==="string"&&Array.isArray(q.o)&&q.o.length>=3){ ok.push({q:q.q,o:[String(q.o[0]),String(q.o[1]),String(q.o[2])],c:(typeof q.c==="number"?q.c:0),f:(q.f||"Estude o material do empreendimento.")}); } }
+    for(const q of data){ if(q&&typeof q.q==="string"&&Array.isArray(q.o)&&q.o.length>=3){ let it={q:q.q,o:[String(q.o[0]),String(q.o[1]),String(q.o[2])],c:(typeof q.c==="number"?q.c:0),f:(q.f||"Estude o material do empreendimento.")}; ok.push(shuffleOpts(it)); } }
     if(!ok.length){ note.textContent="A IA não retornou perguntas válidas. Verifique o endpoint."; return; }
     state.emp=(state.emp||[]).concat(ok); try{ await saveConfig(); }catch(e){}
     $("#aiSite").value="";
@@ -1077,7 +1089,8 @@ function renderEmpList(){
   if(!arr.length){ el.innerHTML='<div class="emp-empty">Nenhuma pergunta de empreendimento cadastrada.</div>'; return; }
   arr.forEach((q,i)=>{
     const d=document.createElement("div"); d.className="emp-item";
-    d.innerHTML=`<div class="emp-main"><div class="emp-q">${i+1}. ${escapeHtml(q.q)}</div><div class="emp-ok">Correta: ${L[q.c]}) ${escapeHtml((q.o&&q.o[q.c])||"")}</div></div>`;
+    const opts=(q.o||[]).map((op,k)=>`<div class="emp-opt${k===q.c?' emp-opt-ok':''}">${L[k]}) ${escapeHtml(op)}${k===q.c?' ✓':''}</div>`).join("");
+    d.innerHTML=`<div class="emp-main"><div class="emp-q">${i+1}. ${escapeHtml(q.q)}</div>${opts}${q.f?`<div class="emp-f">Por quê: ${escapeHtml(q.f)}</div>`:''}</div>`;
     const rm=document.createElement("button"); rm.type="button"; rm.className="del-btn"; rm.textContent="Excluir";
     let armed=false,t=null;
     rm.addEventListener("click",()=>{ if(!armed){armed=true;rm.classList.add("armed");rm.textContent="Confirmar";t=setTimeout(()=>{armed=false;rm.classList.remove("armed");rm.textContent="Excluir";},2500);} else {clearTimeout(t);removeEmp(i);} });
