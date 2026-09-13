@@ -453,18 +453,6 @@
               <div class="add-row"><button class="add-btn" id="aiImportBtn" type="button">Importar</button></div>
             </details>
           </div>
-          <div class="emp-form">
-            <input type="text" id="empQ" placeholder="Pergunta (ex: Qual a entrada facilitada do lançamento X?)">
-            <input type="text" id="empA" placeholder="Opção A">
-            <input type="text" id="empB" placeholder="Opção B">
-            <input type="text" id="empC" placeholder="Opção C">
-            <div class="add-row">
-              <select id="empCorrect"><option value="0">Correta: A</option><option value="1">Correta: B</option><option value="2">Correta: C</option></select>
-              <button class="add-btn" id="empAdd" type="button">Adicionar pergunta</button>
-            </div>
-            <input type="text" id="empF" placeholder="Explicação (por que é a correta)">
-            <div class="save-note" id="empNote"></div>
-          </div>
         </div>
         <div class="mgr-foot">
           <button class="ghost-btn" id="changePinBtn" type="button">Trocar senha</button>
@@ -1252,7 +1240,6 @@ function bootUI(){
   $("#mgrExit").addEventListener("click",exitManager);
   $("#changePinBtn").addEventListener("click",()=>$("#changePinRow").classList.toggle("hide"));
   $("#savePinBtn").addEventListener("click",changePin);
-  $("#empAdd").addEventListener("click",addEmp);
   $("#aiImportBtn").addEventListener("click",importEmp);
   $("#aiFetchBtn").addEventListener("click",aiFetch);
   $("#addBtn").addEventListener("click",addCorretor);
