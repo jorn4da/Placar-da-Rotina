@@ -189,6 +189,10 @@
   .mgr-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
   .add-col{display:flex;flex-direction:column;gap:8px;margin-top:12px}
   .add-col .add-row{margin-top:0}
+  .wa-btn{margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;font-family:var(--font-title);font-weight:700;font-size:0.84rem;padding:11px;border-radius:var(--radius-md);cursor:pointer}
+  .wa-btn:hover{filter:brightness(1.06)}
+  .code-row .ed-fone{margin-bottom:8px}
+  .code-row .ed-note{margin-top:8px}
   .code-status{font-size:0.72rem;font-weight:600;padding:3px 8px;border-radius:var(--radius-full)}
   .code-status.has{color:var(--success);background:var(--success-bg)}
   .code-status.no{color:var(--alert);background:var(--alert-bg)}
@@ -376,6 +380,7 @@
         <div id="teamList"></div>
         <div class="add-col">
           <input type="text" id="newName" placeholder="Nome do novo corretor">
+          <input type="text" id="newFone" placeholder="WhatsApp com DDD (ex: 21 99999-9999)">
           <div class="add-row">
             <input type="text" id="newCode" placeholder="Código de acesso do corretor">
             <button class="add-btn" id="addBtn" type="button">Adicionar</button>
@@ -415,7 +420,7 @@
 
   <div class="foot">
     <span id="footMode"></span><br>
-    <strong>Aritan Especialista</strong> &middot; RV Cury Vendas &middot; <a href="https://linktr.ee/rvcuryvendas" target="_blank" rel="noopener">linktr.ee/rvcuryvendas</a>
+    <strong>Aritan Especialista</strong> &middot; RV Cury Vendas &middot; <a href="https://linktr.ee/suporte_kaizen" target="_blank" rel="noopener">linktr.ee/suporte_kaizen</a>
   </div>
 </div>
 
@@ -889,46 +894,68 @@ function renderRanking(rows){
 function renderAll(){ const rows=getRanking(); if(state.who) updateMyStats(rows); renderPodium(rows); renderRanking(rows); }
 
 /* ============ GERENCIAR EQUIPE ============ */
+function normFone(f){ let d=(f||"").replace(/\D/g,""); if(d.length<10) return ""; if(!(d[0]==="5"&&d[1]==="5")) d="55"+d; return d; }
+function sendWhats(nome,fone,code){
+  const num=normFone(fone); if(!num) return false;
+  const link=location.origin+location.pathname;
+  const msg="Ola, "+primeiro(nome)+"! Este e o seu acesso ao Placar da Rotina (Aritan Especialista):\n"+link+"\n\nEntre com o seu NOME e digite o CODIGO: "+code+"\n\nFaca o check-in e o Desafio do dia todos os dias. O sucesso vem com disciplina!";
+  const url="https://wa.me/"+num+"?text="+encodeURIComponent(msg);
+  try{ window.open(url,"_blank"); }catch(e){ location.href=url; }
+  return true;
+}
 function renderTeamPanel(){
   const list=$("#teamList"); list.innerHTML="";
   state.team.forEach(c=>{
     const item=document.createElement("div"); item.className="team-item";
     const row=document.createElement("div"); row.className="team-row";
     row.innerHTML=`<span class="avatar" style="width:30px;height:30px;font-size:0.72rem">${iniciais(c.nome)}</span><span class="nm">${c.nome}</span><span class="code-status ${c.pin?"has":"no"}">${c.pin?"com código":"sem código"}</span>`;
-    const codeBtn=document.createElement("button"); codeBtn.type="button"; codeBtn.className="del-btn"; codeBtn.textContent="Código";
+    const codeBtn=document.createElement("button"); codeBtn.type="button"; codeBtn.className="del-btn"; codeBtn.textContent="Código / Zap";
     const del=document.createElement("button"); del.type="button"; del.className="del-btn"; del.textContent="Excluir";
     row.appendChild(codeBtn); row.appendChild(del);
-    const codeRow=document.createElement("div"); codeRow.className="add-row code-row hide";
-    codeRow.innerHTML=`<input type="text" placeholder="Definir código de acesso"><button class="add-btn" type="button">Salvar código</button>`;
-    codeBtn.addEventListener("click",()=>codeRow.classList.toggle("hide"));
-    codeRow.querySelector("button").addEventListener("click",()=>{
-      const v=codeRow.querySelector("input").value.trim();
-      if(v.length<3){ return; }
-      setCorretorPin(c.id,v); codeRow.classList.add("hide");
+    const edit=document.createElement("div"); edit.className="code-row hide";
+    edit.innerHTML=`<input type="text" class="ed-fone" placeholder="WhatsApp com DDD (ex: 21 99999-9999)" value="${c.fone||""}">`+
+      `<div class="add-row"><input type="text" class="ed-code" placeholder="Definir código de acesso"><button class="add-btn ed-save" type="button">Salvar</button></div>`+
+      `<button class="wa-btn" type="button">Salvar e enviar no WhatsApp</button>`+
+      `<div class="save-note ed-note"></div>`;
+    codeBtn.addEventListener("click",()=>edit.classList.toggle("hide"));
+    const foneI=edit.querySelector(".ed-fone"), codeI=edit.querySelector(".ed-code"), note=edit.querySelector(".ed-note");
+    edit.querySelector(".ed-save").addEventListener("click",()=>{
+      const code=codeI.value.trim(), fone=foneI.value.trim();
+      if(code && code.length<3){ note.textContent="Código de ao menos 3 caracteres."; return; }
+      setCorretor(c.id,code,fone); note.textContent="Salvo."; setTimeout(()=>edit.classList.add("hide"),500);
+    });
+    edit.querySelector(".wa-btn").addEventListener("click",()=>{
+      const code=codeI.value.trim(), fone=foneI.value.trim();
+      if(code.length<3){ note.textContent="Digite o código (mín. 3 caracteres)."; return; }
+      if(!normFone(fone)){ note.textContent="Informe o WhatsApp com DDD."; return; }
+      setCorretor(c.id,code,fone); sendWhats(c.nome,fone,code); note.textContent="Abrindo o WhatsApp...";
+      setTimeout(()=>edit.classList.add("hide"),900);
     });
     let armed=false, tmr=null;
     del.addEventListener("click",()=>{
       if(!armed){ armed=true; del.classList.add("armed"); del.textContent="Confirmar"; tmr=setTimeout(()=>{armed=false;del.classList.remove("armed");del.textContent="Excluir";},2500); }
       else{ clearTimeout(tmr); removeCorretor(c.id); }
     });
-    item.appendChild(row); item.appendChild(codeRow); list.appendChild(item);
+    item.appendChild(row); item.appendChild(edit); list.appendChild(item);
   });
 }
-async function setCorretorPin(id,code){
-  state.team=state.team.map(c=> c.id===id ? {...c, pin:hashCode(code)} : c);
+async function setCorretor(id,code,fone){
+  state.team=state.team.map(c=>{ if(c.id!==id) return c; const n=Object.assign({},c); n.fone=(fone||c.fone||""); if(code) n.pin=hashCode(code); return n; });
   await saveConfig();
   if(!state.db){ renderTeamPanel(); renderGate(); }
 }
 async function addCorretor(){
-  const inp=$("#newName"), nome=inp.value.trim();
-  const codeInp=$("#newCode"), code=codeInp.value.trim();
+  const nome=$("#newName").value.trim();
+  const code=$("#newCode").value.trim();
+  const fone=$("#newFone").value.trim();
   if(!nome) return;
   const id=slug(nome)+"-"+Math.random().toString(36).slice(2,6);
-  const item={id,nome}; if(code) item.pin=hashCode(code);
+  const item={id,nome}; if(code) item.pin=hashCode(code); if(fone) item.fone=fone;
   state.team=state.team.concat([item]);
-  inp.value=""; codeInp.value="";
+  $("#newName").value=""; $("#newCode").value=""; $("#newFone").value="";
   await saveConfig();
   if(!state.db){ renderGate(); renderTeamPanel(); renderAll(); }
+  if(code && normFone(fone)) sendWhats(nome,fone,code);
 }
 async function removeCorretor(id){
   state.team=state.team.filter(c=>c.id!==id);
