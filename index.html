@@ -447,11 +447,6 @@
             <input type="text" id="aiSite" placeholder="Cole o link da página do empreendimento">
             <div class="add-row"><button class="add-btn" id="aiFetchBtn" type="button">Buscar perguntas com IA</button></div>
             <div class="save-note" id="aiNote"></div>
-            <details style="margin-top:8px">
-              <summary style="font-size:0.82rem;color:var(--ink-faint);cursor:pointer">Ou colar perguntas em código (JSON)</summary>
-              <textarea id="aiImport" placeholder="Cole aqui o código das perguntas (JSON)" style="margin-top:8px"></textarea>
-              <div class="add-row"><button class="add-btn" id="aiImportBtn" type="button">Importar</button></div>
-            </details>
           </div>
         </div>
         <div class="mgr-foot">
@@ -1240,7 +1235,6 @@ function bootUI(){
   $("#mgrExit").addEventListener("click",exitManager);
   $("#changePinBtn").addEventListener("click",()=>$("#changePinRow").classList.toggle("hide"));
   $("#savePinBtn").addEventListener("click",changePin);
-  $("#aiImportBtn").addEventListener("click",importEmp);
   $("#aiFetchBtn").addEventListener("click",aiFetch);
   $("#addBtn").addEventListener("click",addCorretor);
   $("#newName").addEventListener("keydown",e=>{ if(e.key==="Enter") addCorretor(); });
