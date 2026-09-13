@@ -1,7 +1,7 @@
 {
-  "name": "Placar da Rotina — Aritan Especialista",
-  "short_name": "Placar da Rotina",
-  "description": "Check-in diário, quiz cronometrado e placar da equipe.",
+  "name": "Ranking da Rotina — Aritan Especialista",
+  "short_name": "Ranking da Rotina",
+  "description": "Check-in diário, quiz cronometrado e ranking da equipe.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
