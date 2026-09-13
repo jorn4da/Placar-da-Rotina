@@ -59,8 +59,8 @@
   }
 
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.6;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:0 56px}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+  .wrap{max-width:1120px;margin:0 auto;width:100%;flex:1 0 auto;display:flex;flex-direction:column;padding-inline:16px;padding-block:0 32px}
   a{color:var(--accent)}
   h1,h2,h3{font-family:var(--font-title);line-height:1.15;margin:0}
   button{font-family:var(--font-title);cursor:pointer}
@@ -80,7 +80,7 @@
   .theme-btn{background:rgba(243,247,250,0.10);border:1px solid rgba(243,247,250,0.20);color:var(--on-brand);font-size:0.78rem;font-weight:600;padding:6px 12px;border-radius:var(--radius-full)}
   .theme-btn:hover{background:rgba(243,247,250,0.20)}
 
-  .gate{margin-top:-14px}
+  .gate{margin-top:-14px;flex:1 0 auto;display:flex;flex-direction:column;justify-content:center}
   .gate-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);padding:26px 24px}
   .gate-card h2{font-size:1.15rem;font-weight:700;margin-bottom:4px}
   .gate-card p{margin:0 0 18px;color:var(--ink-soft);font-size:0.92rem}
@@ -198,6 +198,8 @@
   .emp-ok{font-size:0.76rem;color:var(--success);margin-top:2px}
   .emp-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
   .emp-form select{font-family:var(--font-body);font-size:0.9rem;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-md);padding:11px 12px}
+  .ai-box{margin-top:12px;padding:12px;border:1px dashed var(--line-strong);border-radius:var(--radius-md);display:flex;flex-direction:column;gap:8px}
+  .ai-title{font-family:var(--font-title);font-weight:700;font-size:0.74rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--accent)}
   .add-col{display:flex;flex-direction:column;gap:8px;margin-top:12px}
   .add-col .add-row{margin-top:0}
   .wa-btn{margin-top:10px;width:100%;background:var(--success);color:#fff;border:none;font-family:var(--font-title);font-weight:700;font-size:0.84rem;padding:11px;border-radius:var(--radius-md);cursor:pointer}
@@ -264,8 +266,29 @@
   .video-edit{margin-top:12px}
   .video-edit .add-row{margin-top:8px}
 
-  .foot{margin-top:26px;text-align:center;color:var(--ink-faint);font-size:0.8rem;line-height:1.7}
+  .foot{margin-top:auto;padding-top:24px;text-align:center;color:var(--ink-faint);font-size:0.8rem;line-height:1.7}
   .foot a{font-weight:600;text-decoration:none}
+  @media (max-width:600px){
+    html{font-size:17px}
+    .topbar-inner{padding:18px 16px 22px}
+    .topbar h1{font-size:2rem}
+    .brand-logo{width:56px;height:56px}
+    .gate-card{padding:22px 18px}
+    .gate-card h2{font-size:1.4rem}
+    .gate-card p{font-size:1rem}
+    .pick-grid{grid-template-columns:1fr 1fr;gap:10px}
+    .pick{padding:16px 14px;gap:12px;font-size:1rem}
+    .pick .avatar{width:46px;height:46px;font-size:1.02rem}
+    .gate-gestor #gestorBtn{font-size:0.95rem;padding:12px 22px}
+    .card-body{padding:18px 16px}
+    .statrow{gap:8px}
+    .stat{min-width:calc(50% - 4px)}
+    .task{padding:14px}
+    .task-txt{font-size:1rem}
+    .btn-primary{width:100%;justify-content:center;text-align:center}
+    .opt{padding:14px}
+    .rank-item{padding:14px 16px}
+  }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -405,6 +428,16 @@
           <h3>Perguntas de empreendimento (na planta)</h3>
           <p class="emp-hint">1 ou 2 destas entram no quiz por dia. Cadastre só lançamentos NA PLANTA. Quando o projeto ficar pronto, exclua.</p>
           <div id="empList"></div>
+          <div class="ai-box">
+            <div class="ai-title">Gerar com IA (opcional)</div>
+            <input type="text" id="aiUrl" placeholder="URL da IA (webhook do n8n)">
+            <textarea id="aiFicha" placeholder="Cole a ficha do lançamento aqui (metragem, entrada, dormitórios...). Deixe em branco para uma pergunta geral Cury/MCMV."></textarea>
+            <div class="add-row">
+              <input type="text" id="aiNome" placeholder="Nome do lançamento (opcional)">
+              <button class="add-btn" id="aiGen" type="button">Gerar com IA</button>
+            </div>
+            <div class="save-note" id="aiNote"></div>
+          </div>
           <div class="emp-form">
             <input type="text" id="empQ" placeholder="Pergunta (ex: Qual a entrada facilitada do lançamento X?)">
             <input type="text" id="empA" placeholder="Opção A">
@@ -562,7 +595,7 @@ function localSave(o){ try{ localStorage.setItem(LS_LOCAL,JSON.stringify(o)); }c
 
 /* ============ STATE ============ */
 const state = {
-  who:null, db:null, docs:{}, team:DEFAULT_TEAM.slice(), video:"", pin:"", isManager:false, emp:[],
+  who:null, db:null, docs:{}, team:DEFAULT_TEAM.slice(), video:"", pin:"", isManager:false, emp:[], aiUrl:"",
   selectedTasks:new Set(), quiz:null, pend:"", email:"", dl:null,
 };
 
@@ -980,8 +1013,30 @@ function renderTeamPanel(){
   });
   renderEmpList();
 }
+async function aiGen(){
+  const url=($("#aiUrl").value||"").trim(); const note=$("#aiNote");
+  if(!url){ note.textContent="Cole a URL da IA (webhook) primeiro."; return; }
+  if(url!==state.aiUrl){ state.aiUrl=url; try{ await saveConfig(); }catch(e){} }
+  note.textContent="Gerando... aguarde alguns segundos.";
+  const body={ modo:($("#aiFicha").value.trim()?"empreendimento":"geral"), empreendimento:($("#aiNome").value||"").trim(), ficha:($("#aiFicha").value||"").trim() };
+  try{
+    const form=new URLSearchParams(); form.set("modo",body.modo); form.set("empreendimento",body.empreendimento); form.set("ficha",body.ficha);
+    const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:form.toString()});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    let data=await r.json();
+    if(data&&data.output) data=data.output;
+    if(typeof data==="string"){ try{ data=JSON.parse(data); }catch(e){} }
+    if(Array.isArray(data)) data=data[0];
+    if(!data||!data.q||!Array.isArray(data.o)){ note.textContent="Resposta inesperada da IA. Verifique o fluxo do n8n."; return; }
+    $("#empQ").value=data.q; $("#empA").value=data.o[0]||""; $("#empB").value=data.o[1]||""; $("#empC").value=data.o[2]||"";
+    $("#empCorrect").value=String(typeof data.c==="number"?data.c:0); $("#empF").value=data.f||"";
+    note.textContent="Pergunta gerada. Revise abaixo e clique em Adicionar pergunta.";
+  }catch(e){ note.textContent="Não consegui chamar a IA. Verifique a URL e o CORS do n8n. ("+e.message+")"; }
+}
 function renderEmpList(){
-  const el=$("#empList"); if(!el) return; el.innerHTML="";
+  const el=$("#empList"); if(!el) return;
+  const au=$("#aiUrl"); if(au && document.activeElement!==au) au.value=state.aiUrl||"";
+  el.innerHTML="";
   const arr=state.emp||[]; const L=["A","B","C","D"];
   if(!arr.length){ el.innerHTML='<div class="emp-empty">Nenhuma pergunta de empreendimento cadastrada.</div>'; return; }
   arr.forEach((q,i)=>{
@@ -1056,7 +1111,7 @@ async function saveVideo(){
 
 /* ============ CONFIG PERSIST ============ */
 async function saveConfig(){
-  const cfg={ team:state.team, video:state.video, pin:state.pin||"", empreendimentos:(state.emp||[]), updatedAt:Date.now() };
+  const cfg={ team:state.team, video:state.video, pin:state.pin||"", empreendimentos:(state.emp||[]), aiUrl:(state.aiUrl||""), updatedAt:Date.now() };
   if(state.db){
     try{ await state.db.doc("config/app").set(cfg); }
     catch(e){
@@ -1072,6 +1127,7 @@ function applyConfig(d){
   state.video=(d&&d.video)||"";
   state.pin=(d&&d.pin)||"";
   state.emp=(d&&Array.isArray(d.empreendimentos))?d.empreendimentos:[];
+  state.aiUrl=(d&&d.aiUrl)||"";
   // restaura o modo gestor neste aparelho, se a senha bater
   if(state.pin && lsGet(LS_MGR,"")===state.pin) state.isManager=true;
   refreshMgrUI();
@@ -1148,6 +1204,7 @@ function bootUI(){
   $("#changePinBtn").addEventListener("click",()=>$("#changePinRow").classList.toggle("hide"));
   $("#savePinBtn").addEventListener("click",changePin);
   $("#empAdd").addEventListener("click",addEmp);
+  $("#aiGen").addEventListener("click",aiGen);
   $("#addBtn").addEventListener("click",addCorretor);
   $("#newName").addEventListener("keydown",e=>{ if(e.key==="Enter") addCorretor(); });
   $("#videoEditBtn").addEventListener("click",()=>{ const e=$("#videoEdit"); e.classList.toggle("hide"); if(!e.classList.contains("hide")) $("#videoInput").value=state.video||""; });
