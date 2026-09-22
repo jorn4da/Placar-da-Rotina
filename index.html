@@ -329,9 +329,13 @@
   <section class="gate" id="gate">
     <div class="gate-card">
       <div id="gatePick">
-        <h2 style="display:flex;align-items:center;gap:10px"><svg class="sec-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Quem é você hoje?</span></h2>
-        <p>Escolha seu nome para registrar o check-in da rotina e entrar no ranking da equipe.</p>
-        <div class="pick-grid" id="pickGrid"></div>
+        <h2 style="display:flex;align-items:center;gap:10px"><svg class="sec-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Acesso do corretor</span></h2>
+        <p>Digite o código que você recebeu no WhatsApp para registrar seu check-in e entrar no ranking.</p>
+        <div class="add-row">
+          <input type="password" id="gateOnlyCode" placeholder="Seu código de acesso" autocomplete="off">
+          <button class="add-btn" id="gateOnlyEnter" type="button">Entrar</button>
+        </div>
+        <div class="save-note" id="gateOnlyNote" style="margin-top:8px"></div>
         <div class="gate-gestor"><button class="ghost-btn" id="gestorBtn" type="button">Entrar como Gestor</button></div>
       </div>
       <div class="gate-code hide" id="gateCode">
@@ -616,15 +620,14 @@ function initTheme(){
 }
 
 /* ============ GATE ============ */
-function renderGate(){
-  const g=$("#pickGrid"); g.innerHTML="";
-  state.team.forEach(c=>{
-    const b=document.createElement("button");
-    b.type="button"; b.className="pick";
-    b.innerHTML=`<span class="avatar">${iniciais(c.nome)}</span><span class="pick-name">${c.nome}</span><svg class="pick-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>`;
-    b.addEventListener("click",()=>pickCorretor(c.id));
-    g.appendChild(b);
-  });
+function renderGate(){ /* login por código: nada a montar aqui */ }
+function gateEnterByCode(){
+  const el=$("#gateOnlyCode"); if(!el) return;
+  const val=el.value.trim(); const note=$("#gateOnlyNote");
+  if(!val){ if(note) note.textContent="Digite seu código."; return; }
+  const c=state.team.find(x=>x.pin && x.pin===hashCode(val));
+  if(c){ el.value=""; if(note) note.textContent=""; loginAs(c.id); }
+  else { if(note) note.textContent="Código inválido. Fale com o gestor se esqueceu."; }
 }
 let pendingId=null;
 function pickCorretor(id){
@@ -696,6 +699,18 @@ function enterGestor(pin){
 }
 
 /* ============ CHECK-IN ============ */
+function quizDoneKey(){ return "placar_quizdone_"+state.who+"_"+TODAY; }
+function quizResKey(){ return "placar_quizres_"+state.who+"_"+TODAY; }
+function quizDoneToday(){
+  try{ if(localStorage.getItem(quizDoneKey())==="1") return true; }catch(e){}
+  const rec=state.docs[state.who+"_"+TODAY]; return !!(rec && rec.quizFeito);
+}
+function markQuizDone(q){
+  try{
+    localStorage.setItem(quizDoneKey(),"1");
+    localStorage.setItem(quizResKey(), JSON.stringify({correct:q.correct,wrong:q.wrong,missed:q.missed}));
+  }catch(e){}
+}
 function buildCheckin(){
   $("#myAv").textContent=iniciais(nomeById(state.who));
   $("#myName").textContent=nomeById(state.who);
@@ -716,6 +731,13 @@ function buildCheckin(){
   });
   updateTaskCount();
   state.quiz=null;
+  // se já fez o desafio hoje e ainda não concluiu o check-in, restaura os pontos do quiz
+  const jaConcluido=state.docs[state.who+"_"+TODAY];
+  if(!jaConcluido && quizDoneToday()){
+    try{ const r=JSON.parse(localStorage.getItem(quizResKey())||"null");
+      if(r){ state.quiz={ started:true, done:true, idx:0, correct:r.correct||0, wrong:r.wrong||0, missed:r.missed||0, questions:[], answers:[] }; }
+    }catch(e){}
+  }
   renderQuizIntro();
   $("#pend").value=""; state.pend="";
   $("#pend").oninput=e=>{ state.pend=e.target.value; };
@@ -726,12 +748,20 @@ function updateTaskCount(){ $("#taskCount").textContent=state.selectedTasks.size
 let quizTimer=null;
 function renderQuizIntro(){
   const qz=$("#quiz");
+  if(quizDoneToday()){ renderQuizDone(); return; }
   qz.innerHTML=`
     <div class="qhead"><span class="qtag">Desafio do dia</span></div>
     <div class="q">${QUIZ_COUNT} perguntas, ${QUIZ_SECONDS} segundos cada.</div>
     <p class="quiz-rules">Responda rápido, sem consultar. Cada pergunta não respondida perde ${PENAL_NAO_RESP} pontos. No fim você recebe o resumo com as respostas para estudar.</p>
     <button class="btn-primary" id="startQuiz" type="button">Iniciar Desafio</button>`;
   qz.querySelector("#startQuiz").addEventListener("click",startQuiz);
+}
+function renderQuizDone(){
+  const qz=$("#quiz");
+  qz.innerHTML=`
+    <div class="qhead"><span class="qtag">Desafio do dia</span></div>
+    <div class="q">Desafio de hoje concluído.</div>
+    <p class="quiz-rules">Você já fez o desafio de hoje. Agora é só concluir o check-in do dia abaixo. Amanhã tem um novo desafio.</p>`;
 }
 function startQuiz(){
   state.quiz={ started:true, done:false, idx:0, correct:0, wrong:0, missed:0,
@@ -793,6 +823,7 @@ function answerQuiz(i){
 function quizPoints(q){ return q ? Math.max(0, q.correct*PONTO_ACERTO - q.missed*PENAL_NAO_RESP) : 0; }
 function finishQuiz(){
   const q=state.quiz; q.done=true; clearInterval(quizTimer);
+  markQuizDone(q);
   const pts=quizPoints(q);
   const qz=$("#quiz");
   qz.innerHTML=`
@@ -1221,9 +1252,8 @@ async function changePin(){
 function bootUI(){
   initDate(); initTheme(); renderGate(); renderTeamPanel(); renderVideo();
   $("#switchBtn").addEventListener("click",logout);
-  $("#gateCodeEnter").addEventListener("click",gateCodeEnter);
-  $("#gateCodeInput").addEventListener("keydown",e=>{ if(e.key==="Enter") gateCodeEnter(); });
-  $("#gateCodeBack").addEventListener("click",hideGateCode);
+  $("#gateOnlyEnter").addEventListener("click",gateEnterByCode);
+  $("#gateOnlyCode").addEventListener("keydown",e=>{ if(e.key==="Enter") gateEnterByCode(); });
   $("#gestorBtn").addEventListener("click",openGestorGate);
   $("#gestorEnter").addEventListener("click",gestorEnter);
   $("#gestorPin").addEventListener("keydown",e=>{ if(e.key==="Enter") gestorEnter(); });
