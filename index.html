@@ -390,6 +390,18 @@
   .plan-tag.no{color:var(--alert)}
   .ed-lbl{display:flex;flex-direction:column;gap:4px;font-size:0.74rem;font-weight:600;color:var(--ink-soft);margin-bottom:8px}
   .ed-lbl select{font-family:var(--font-body);font-size:0.9rem;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-md);padding:11px 12px}
+  .perf-nota{margin-top:12px;font-size:0.8rem;color:var(--alert)}
+  .racional{margin-top:12px;border:1px solid var(--line);border-radius:var(--radius-md);padding:0 18px;background:var(--surface)}
+  .racional summary{cursor:pointer;min-height:48px;display:flex;align-items:center;font-family:var(--font-title);font-weight:700;font-size:0.92rem;color:var(--accent)}
+  .racional p,.racional li{font-size:0.86rem;color:var(--ink-soft);line-height:1.55}
+  .racional ul{padding-left:18px;margin:12px 0 16px}
+  .rac-list{display:flex;flex-direction:column}
+  .rac-item{display:grid;grid-template-columns:180px 1fr auto;gap:6px 16px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+  .rac-t{font-weight:600;font-size:0.88rem}
+  .rac-f{font-size:0.84rem;color:var(--ink-soft)}
+  .rac-m{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+  .rac-m .pchip{font-size:0.72rem}
+  @media (max-width:820px){.rac-item{grid-template-columns:1fr}.rac-m{justify-content:flex-start}}
   @media (max-width:600px){
     .perf{padding:18px 16px 18px}
     .perf-ctrls{width:100%}
@@ -1590,20 +1602,49 @@ function perfRenderCorretor(nome){
   </div>`;
 }
 
+function perfCadastrados(){
+  const vistos=new Set(), out=[];
+  state.team.forEach(c=>{ const n=perfNomePlanilha(c); if(!n) return; const k=perfNorm(n); if(vistos.has(k)) return; vistos.add(k); out.push({n,nome:c.nome}); });
+  return out.sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR"));
+}
+function perfNomeApp(n){ const x=perfCadastrados().find(y=>perfNorm(y.n)===perfNorm(n)); return x?x.nome:perfTitle(n); }
+function perfRacional(){
+  const faixa=(k,fmtv)=>{ const m=PERF_METAS[k]; return `<span class="pchip st-ruim">abaixo de ${fmtv(m[0])}</span> <span class="pchip st-medio">${fmtv(m[0])} a ${fmtv(m[1])}</span> <span class="pchip st-bom">acima de ${fmtv(m[1])}</span>`; };
+  const pc=v=>Math.round(v*100)+"%", n=v=>String(v);
+  const itens=[
+    ["Presença","(plantões + escritório) ÷ dias do período",faixa("presenca",pc)],
+    ["Prospecção por dia","prospecção ativa ÷ dias presentes (plantão + escritório)",faixa("mediaProsp",n)],
+    ["Lead x agendamento","agendamentos ÷ (lead App + lead CRM)",faixa("leadXAgend",pc)],
+    ["Agendamento x visita","visitas ÷ agendamentos",faixa("agendXVisita",pc)],
+    ["Visita x pasta","pastas ÷ visitas",faixa("visitaXPasta",pc)],
+    ["Pasta x venda","vendas ÷ pastas",faixa("pastaXVenda",pc)]
+  ];
+  return `<details class="racional">
+    <summary>Como os números são calculados</summary>
+    <p>Tudo vem da aba CONTROLE DIÁRIO da planilha GESTÃO | 2026, somando os dias do período escolhido, com as mesmas contas da aba RESUMO CONTROLE DIÁRIO. As cores seguem as metas da planilha.</p>
+    <div class="rac-list">${itens.map(i=>`<div class="rac-item"><div class="rac-t">${i[0]}</div><div class="rac-f">${i[1]}</div><div class="rac-m">${i[2]}</div></div>`).join("")}</div>
+    <ul>
+      <li><strong>Agendamentos</strong>: agendamento lead + lead equipe + carteira, somados às visitas (lead + lead equipe + carteira), igual à coluna de agendamentos do RESUMO.</li>
+      <li><strong>Visitas</strong>: visita lead + visita lead equipe + visita carteira.</li>
+      <li><strong>Foco agora</strong>: o indicador no vermelho mais distante da meta.</li>
+      <li><strong>Equipe</strong>: só entram os corretores cadastrados no app e vinculados a um nome da planilha. Presença média é a média simples entre eles.</li>
+    </ul>
+  </details>`;
+}
 function perfRenderEquipe(){
-  const nomes=new Set();
-  perf.data.linhas.forEach(l=>{ const n=String(l[1]).trim(); if(n.length>2) nomes.add(n); });
-  const rows=Array.from(nomes).map(n=>({n,a:perfAgg(n)}))
-    .filter(x=>x.a.presentes+x.a.t.falta+x.a.leads+x.a.t.prosp+x.a.agend>0)
+  const vistos=new Set(), semVinculo=[];
+  const cad=[];
+  state.team.forEach(c=>{ const n=perfNomePlanilha(c); if(!n){ semVinculo.push(c.nome); return; } const k=perfNorm(n); if(vistos.has(k)) return; vistos.add(k); cad.push({n,nome:c.nome}); });
+  const rows=cad.map(x=>({n:x.n,nome:x.nome,a:perfAgg(x.n)}))
     .sort((x,y)=>(y.a.t.vgv-x.a.t.vgv)||((y.a.presenca||0)-(x.a.presenca||0))||x.n.localeCompare(y.n,"pt-BR"));
-  if(!rows.length) return `<div class="perf-empty">Nenhum registro na planilha em ${escapeHtml(perfMonthLabel(perf.month))}.</div>`;
+  if(!rows.length) return `<div class="perf-empty">Nenhum corretor cadastrado está vinculado à planilha. Vincule em Equipe &gt; Código / Zap &gt; Nome na planilha.</div>`;
   const sum=f=>rows.reduce((s,x)=>s+f(x.a),0);
   const vgv=sum(a=>a.t.vgv), vendas=sum(a=>a.t.venda), agend=sum(a=>a.agend), pastas=sum(a=>a.t.pasta);
   const presMedia=sum(a=>a.presenca||0)/rows.length;
   const sp=perfStatus("presenca",presMedia);
   const linhas=rows.map(x=>{ const a=x.a;
     return `<tr>
-      <td><button type="button" class="tlink" data-perf-nome="${escapeHtml(x.n)}"><span class="rank-av sm">${escapeHtml(iniciais(perfTitle(x.n)))}</span>${escapeHtml(perfTitle(x.n))}</button></td>
+      <td><button type="button" class="tlink" data-perf-nome="${escapeHtml(x.n)}"><span class="rank-av sm">${escapeHtml(iniciais(x.nome))}</span>${escapeHtml(x.nome)}</button></td>
       <td>${perfChip("presenca",a.presenca)}</td>
       <td>${perfChip("mediaProsp",a.mediaProsp)}</td>
       <td>${perfInt(a.leads)}</td><td>${perfInt(a.agend)}</td><td>${perfInt(a.visitas)}</td>
@@ -1612,10 +1653,10 @@ function perfRenderEquipe(){
   return `
   <div class="perf-kpis">
     <div class="kpi kpi-brand"><div class="k">VGV da equipe</div><div class="v">${perfBRL(vgv)}</div><div class="s">${perfInt(vendas)} ${vendas===1?"venda":"vendas"}</div></div>
-    <div class="kpi"><div class="k">Presença média</div><div class="v txt-${sp}">${perfPct(presMedia)}</div><div class="s">${rows.length} corretores ativos</div></div>
+    <div class="kpi"><div class="k">Presença média</div><div class="v txt-${sp}">${perfPct(presMedia)}</div><div class="s">${rows.length} corretores cadastrados</div></div>
     <div class="kpi"><div class="k">Prospecção ativa</div><div class="v">${perfInt(sum(a=>a.t.prosp))}</div><div class="s">no período</div></div>
-    <div class="kpi"><div class="k">Agendamentos</div><div class="v">${perfInt(agend)}</div><div class="s">${perfInt(sum(a=>a.visitas))} visitas</div></div>
-    <div class="kpi"><div class="k">Pastas</div><div class="v">${perfInt(pastas)}</div><div class="s">${perfInt(sum(a=>a.t.pastaAprov))} aprovadas</div></div>
+    <div class="kpi"><div class="k">Agendamentos</div><div class="v">${perfInt(agend)}</div><div class="s">${perfInt(sum(a=>a.visitas))} ${sum(a=>a.visitas)===1?"visita":"visitas"}</div></div>
+    <div class="kpi"><div class="k">Pastas</div><div class="v">${perfInt(pastas)}</div><div class="s">${perfInt(sum(a=>a.t.pastaAprov))} ${sum(a=>a.t.pastaAprov)===1?"aprovada":"aprovadas"}</div></div>
   </div>
   <div class="pcard">
     <h3>Corretores <small>Toque no nome para abrir o painel</small></h3>
@@ -1623,6 +1664,7 @@ function perfRenderEquipe(){
       <thead><tr><th>Corretor</th><th>Presença</th><th>Prosp./dia</th><th>Leads</th><th>Agend.</th><th>Visitas</th><th>Pastas</th><th>Vendas</th><th>VGV</th></tr></thead>
       <tbody>${linhas}</tbody>
     </table></div>
+    ${semVinculo.length?`<div class="perf-nota">Sem vínculo com a planilha (fora da tabela): ${semVinculo.map(escapeHtml).join(", ")}. Vincule em Equipe &gt; Código / Zap.</div>`:""}
   </div>`;
 }
 
@@ -1642,9 +1684,10 @@ function perfRender(){
   ms.value=perf.month;
   let nomeAlvo="";
   if(gestor){
-    const ws=$("#perfWho"), lista=perf.nomes||[];
-    const opts=lista.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(perfTitle(n))}</option>`).join("");
-    if(ws.dataset.sig!==lista.join("|")){ ws.innerHTML=opts; ws.dataset.sig=lista.join("|"); }
+    const ws=$("#perfWho"), cadLista=perfCadastrados(), lista=cadLista.map(x=>x.n);
+    const sig=cadLista.map(x=>x.n+"="+x.nome).join("|");
+    if(ws.dataset.sig!==sig){ ws.innerHTML=cadLista.map(x=>`<option value="${escapeHtml(x.n)}">${escapeHtml(x.nome)}</option>`).join(""); ws.dataset.sig=sig; }
+    if(perf.sel && lista.indexOf(perf.sel)<0) perf.sel="";
     if(!perf.sel && me) perf.sel=perfNomePlanilha(me);
     if(!perf.sel && lista.length) perf.sel=lista[0];
     ws.value=perf.sel; nomeAlvo=perf.sel;
@@ -1653,7 +1696,7 @@ function perfRender(){
   // Títulos
   const r=perfRange(perf.month);
   $("#perfEyebrow").textContent= gestor ? "Painel do gestor" : "Meu desempenho";
-  $("#perfTitle").textContent= gestor ? (byCorretor ? (nomeAlvo?perfTitle(nomeAlvo):"Por corretor") : "Performance da equipe") : "Olá, "+primeiro(me.nome)+". Seu mês até aqui";
+  $("#perfTitle").textContent= gestor ? (byCorretor ? (nomeAlvo?perfNomeApp(nomeAlvo):"Por corretor") : "Performance da equipe") : "Olá, "+primeiro(me.nome)+". Seu mês até aqui";
   const upd=perf.data&&perf.data.atualizadoEm ? " · atualizado às "+new Date(perf.data.atualizadoEm).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}) : "";
   $("#perfSub").textContent=perfBr(r.ini)+" a "+perfBr(r.fim)+" · "+r.dias+" dias"+upd+(perf.loading?" · atualizando...":"");
 
@@ -1677,7 +1720,7 @@ function perfRender(){
       : `<div class="perf-empty">Seu nome ainda não foi vinculado à planilha. Avise o gestor.</div>`;
     return;
   }
-  body.innerHTML= byCorretor ? perfRenderCorretor(nomeAlvo) : perfRenderEquipe();
+  body.innerHTML= (byCorretor ? perfRenderCorretor(nomeAlvo) : perfRenderEquipe()) + perfRacional();
 }
 
 function perfSync(){
