@@ -402,6 +402,7 @@
   .tlink:hover{text-decoration:underline}
   .rank-av.sm{width:30px;height:30px;font-size:0.7rem}
   .plan-tag{display:block;font-size:0.72rem;color:var(--ink-faint);font-weight:500}
+  .last-acesso{display:block;font-size:0.72rem;color:var(--ink-faint);font-weight:500;margin-top:1px}
   .plan-tag.no{color:var(--alert)}
   .ed-lbl{display:flex;flex-direction:column;gap:4px;font-size:0.74rem;font-weight:600;color:var(--ink-soft);margin-bottom:8px}
   .ed-lbl select{font-family:var(--font-body);font-size:0.9rem;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-md);padding:11px 12px}
@@ -821,6 +822,7 @@ function gateCodeEnter(){
 function loginAs(id){
   const c=state.team.find(x=>x.id===id);
   state.who=id; lsSet(LS_WHO,id); lsSet(LS_AUTH, (c&&c.pin)?c.pin:"free");
+  recordAccess(id);
   $("#gate").classList.add("hide"); $("#app").classList.remove("hide"); $("#app").classList.remove("gestor-only");
   buildCheckin(); renderAll(); perf.sel=""; perfSync();
 }
@@ -1183,7 +1185,8 @@ function renderTeamPanel(){
     const row=document.createElement("div"); row.className="team-row";
     const planNome=perfNomePlanilha(c);
     const planTag= planNome ? `<small class="plan-tag">Planilha: ${escapeHtml(perfTitle(planNome))}${c.planilha?"":" (automático)"}</small>` : `<small class="plan-tag no">Sem vínculo com a planilha</small>`;
-    row.innerHTML=`<span class="avatar" style="width:30px;height:30px;font-size:0.72rem">${iniciais(c.nome)}</span><span class="nm">${escapeHtml(c.nome)}${planTag}</span><span class="code-status ${c.pin?"has":"no"}">${c.pin?"com código":"sem código"}</span>`;
+    const acessoTxt=fmtAcesso(lastAccessOf(c.id));
+    row.innerHTML=`<span class="avatar" style="width:30px;height:30px;font-size:0.72rem">${iniciais(c.nome)}</span><span class="nm">${escapeHtml(c.nome)}${planTag}<small class="last-acesso">Último acesso: ${acessoTxt}</small></span><span class="code-status ${c.pin?"has":"no"}">${c.pin?"com código":"sem código"}</span>`;
     const codeBtn=document.createElement("button"); codeBtn.type="button"; codeBtn.className="del-btn"; codeBtn.textContent="Código / Zap";
     const del=document.createElement("button"); del.type="button"; del.className="del-btn"; del.textContent="Excluir";
     row.appendChild(codeBtn); row.appendChild(del);
@@ -1194,6 +1197,7 @@ function renderTeamPanel(){
       `<input type="text" class="ed-fone" placeholder="WhatsApp com DDD (ex: 21 99999-9999)" value="${escapeHtml(c.fone||"")}">`+
       `<div class="add-row"><input type="text" class="ed-code" placeholder="Definir código de acesso"><button class="add-btn ed-save" type="button">Salvar</button></div>`+
       `<button class="wa-btn" type="button">Salvar e enviar no WhatsApp</button>`+
+      `<button class="del-btn ed-reset" type="button" style="margin-top:6px">Resetar código de acesso</button>`+
       `<div class="save-note ed-note"></div>`;
     codeBtn.addEventListener("click",()=>edit.classList.toggle("hide"));
     const foneI=edit.querySelector(".ed-fone"), codeI=edit.querySelector(".ed-code"), note=edit.querySelector(".ed-note"), planI=edit.querySelector(".ed-plan");
@@ -1208,6 +1212,12 @@ function renderTeamPanel(){
       if(!normFone(fone)){ note.textContent="Informe o WhatsApp com DDD."; return; }
       setCorretor(c.id,code,fone,planI.value); sendWhats(c.nome,fone,code); note.textContent="Abrindo o WhatsApp...";
       setTimeout(()=>edit.classList.add("hide"),900);
+    });
+    const resetBtn=edit.querySelector(".ed-reset"); let rArmed=false, rTmr=null;
+    resetBtn.addEventListener("click",()=>{
+      if(!rArmed){ rArmed=true; resetBtn.classList.add("armed"); resetBtn.textContent="Confirmar: apagar código"; note.textContent="O código atual deixa de funcionar. Defina um novo e envie ao corretor."; rTmr=setTimeout(()=>{ rArmed=false; resetBtn.classList.remove("armed"); resetBtn.textContent="Resetar código de acesso"; },3000); return; }
+      clearTimeout(rTmr); rArmed=false; resetBtn.classList.remove("armed"); resetBtn.textContent="Resetar código de acesso";
+      resetCodigo(c.id); note.textContent="Código resetado. Agora defina um novo código acima.";
     });
     let armed=false, tmr=null;
     del.addEventListener("click",()=>{
@@ -1301,6 +1311,28 @@ async function setCorretor(id,code,fone,plan){
   state.team=state.team.map(c=>{ if(c.id!==id) return c; const n=Object.assign({},c); n.fone=(fone||c.fone||""); if(code) n.pin=hashCode(code); if(plan!==undefined){ if(plan) n.planilha=plan; else delete n.planilha; } return n; });
   await saveConfig();
   if(!state.db){ renderTeamPanel(); renderGate(); }
+}
+async function resetCodigo(id){
+  state.team=state.team.map(c=>{ if(c.id!==id) return c; const n=Object.assign({},c); delete n.pin; return n; });
+  await saveConfig();
+  renderTeamPanel(); if(!state.db) renderGate();
+}
+/* Último acesso: registra no login e lê do Firestore (coleção checkins, doc _acesso_<id>, ignorado no ranking por usar 'cid' e não 'corretorId') */
+function recordAccess(id){
+  const rec={ acesso:true, cid:id, nome:nomeById(id), last:Date.now() };
+  if(state.db){ try{ state.db.doc("checkins/_acesso_"+id).set(rec); }catch(e){} }
+  else { const s=localStore(); s["_acesso_"+id]=rec; localSave(s); state.docs["_acesso_"+id]=rec; }
+}
+function lastAccessOf(id){
+  let t=0;
+  const a=state.docs && state.docs["_acesso_"+id]; if(a&&a.last) t=a.last;
+  corretorDocs(id).forEach(d=>{ if(d.updatedAt&&d.updatedAt>t) t=d.updatedAt; });
+  return t;
+}
+function fmtAcesso(t){
+  if(!t) return "nunca acessou";
+  try{ const d=new Date(t); return d.toLocaleDateString("pt-BR")+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}); }
+  catch(e){ return "—"; }
 }
 async function addCorretor(){
   const nome=$("#newName").value.trim();
