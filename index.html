@@ -170,6 +170,17 @@
   .section-label .count{margin-left:auto;font-weight:600;color:var(--ink-faint);letter-spacing:0;text-transform:none;font-size:0.8rem;font-variant-numeric:tabular-nums}
   .tasks{display:flex;flex-direction:column;gap:8px}
   .task{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:var(--radius-md);background:var(--surface);transition:border-color .12s,background .12s;position:relative}
+  .task.locked{opacity:.6;cursor:not-allowed}
+  .task.locked .box{opacity:.4}
+  .task-time{margin-left:auto;font-size:0.74rem;font-weight:700;white-space:nowrap;padding-left:8px}
+  .task-time.locked-t{color:var(--alert)}
+  .task-time.open-t{color:var(--accent)}
+  .task-time.ontime-t{color:var(--success)}
+  .notif-btn{margin-left:8px;font-size:0.78rem;padding:4px 10px}
+  .tt-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
+  .tt-row:first-child{border-top:none}
+  .tt-txt{flex:1;font-size:0.84rem;color:var(--ink)}
+  .tt-time{font-family:var(--font-body);font-size:0.86rem;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-md);padding:7px 9px}
   .task:hover{border-color:var(--line-strong)}
   .task input{position:absolute;opacity:0;width:0;height:0}
   .box{width:22px;height:22px;flex:none;border-radius:6px;border:2px solid var(--line-strong);display:grid;place-items:center;transition:background .12s,border-color .12s}
@@ -538,7 +549,7 @@
           <div class="stat"><div class="k">Pontos totais</div><div class="v" id="stTotal">0</div></div>
         </div>
 
-        <div class="section-label">Tarefas da manhã <span class="count" id="taskCount">0/0</span></div>
+        <div class="section-label">Tarefas da manhã <span class="count" id="taskCount">0/0</span><button class="ghost-btn notif-btn hide" id="notifBtn" type="button">Ativar notificações</button></div>
         <div class="tasks" id="tasks"></div>
 
         <div class="section-label">Desafio do dia</div>
@@ -591,6 +602,12 @@
         <div class="add-row hide" id="changePinRow">
           <input type="password" id="newPin" placeholder="Nova senha de gestor" autocomplete="off">
           <button class="add-btn" id="savePinBtn" type="button">Salvar</button>
+        </div>
+        <div class="emp-section" id="taskTimeCfg">
+          <h3>Horários das tarefas</h3>
+          <p class="emp-hint">Defina o horário de cada tarefa. Ela fica bloqueada e libera 5 minutos antes do horário. O corretor recebe notificação (com o app aberto). Deixe em branco para liberar o dia todo.</p>
+          <div id="taskTimeRows"></div>
+          <div class="save-note" id="taskTimeNote"></div>
         </div>
         <div class="emp-section" id="perfCfg">
           <h3>Planilha de performance</h3>
@@ -687,7 +704,9 @@ const QUIZ_COUNT = 5;          // perguntas por dia
 const QUIZ_SECONDS = 25;       // tempo por pergunta (segundos)
 const PONTO_ACERTO = 10;       // pontos por acerto
 const PENAL_NAO_RESP = 5;      // pontos perdidos por pergunta não respondida
-const MAX_DIA = () => TAREFAS.length*PONTO_TAREFA + QUIZ_COUNT*PONTO_ACERTO;
+const PONTO_LOGIN = 5;         // bônus por acessar o app no dia
+const PONTO_NO_HORARIO = 5;    // bônus por concluir a tarefa no horário certo
+const MAX_DIA = () => { const comHora=(state.taskTimes||[]).filter(h=>h).length; return PONTO_LOGIN + TAREFAS.length*PONTO_TAREFA + comHora*PONTO_NO_HORARIO + QUIZ_COUNT*PONTO_ACERTO; };
 const QUIZ = [
   { q:'Cliente diz: "Vou esperar os juros baixarem para comprar". Melhor resposta?',
     o:['"Tudo bem, me chama quando baixar."','"Enquanto espera, o imóvel valoriza e o aluguel continua saindo do seu bolso. Vamos simular hoje, sem compromisso?"','"Os juros nunca vão baixar mesmo."'],
@@ -769,6 +788,7 @@ function localSave(o){ try{ localStorage.setItem(LS_LOCAL,JSON.stringify(o)); }c
 const state = {
   who:null, db:null, docs:{}, team:DEFAULT_TEAM.slice(), video:"", pin:"", isManager:false, emp:[], aiUrl:"", perfUrl:"",
   prizes:[{t:"",img:""},{t:"",img:""},{t:"",img:""}],
+  taskTimes:[], taskDoneAt:{},
   selectedTasks:new Set(), quiz:null, pend:"", email:"", dl:null,
 };
 
@@ -827,7 +847,7 @@ function loginAs(id){
   buildCheckin(); renderAll(); perf.sel=""; perfSync();
 }
 function logout(){
-  clearInterval(quizTimer); state.quiz=null;
+  clearInterval(quizTimer); state.quiz=null; stopTaskTicker();
   state.who=null; lsSet(LS_WHO,""); lsSet(LS_AUTH,"");
   state.isManager=false; lsSet(LS_MGR,"");
   hideGateCode();
@@ -883,20 +903,22 @@ function buildCheckin(){
   $("#myName").textContent=nomeById(state.who);
   const md=$("#maxDia"); if(md) md.textContent="/"+MAX_DIA();
   state.email=lsGet("placar_email_"+state.who,"")||"";
-  const t=$("#tasks"); t.innerHTML=""; state.selectedTasks=new Set();
+  const t=$("#tasks"); t.innerHTML=""; state.selectedTasks=new Set(); state.taskDoneAt={};
   TAREFAS.forEach((txt,i)=>{
     const lab=document.createElement("label");
     lab.className="task"; lab.setAttribute("for","tk"+i);
-    lab.innerHTML=`<input type="checkbox" id="tk${i}"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span><span class="task-txt">${txt}</span>`;
+    lab.innerHTML=`<input type="checkbox" id="tk${i}"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></span><span class="task-txt">${txt}</span><span class="task-time"></span>`;
     const cb=lab.querySelector("input");
     cb.addEventListener("change",()=>{
-      if(cb.checked){ state.selectedTasks.add(i); lab.classList.add("on"); }
-      else{ state.selectedTasks.delete(i); lab.classList.remove("on"); }
-      updateTaskCount();
+      if(cb.checked){ state.selectedTasks.add(i); lab.classList.add("on"); state.taskDoneAt[i]=Date.now(); }
+      else{ state.selectedTasks.delete(i); lab.classList.remove("on"); delete state.taskDoneAt[i]; }
+      refreshTaskLocks(); updateTaskCount();
     });
     t.appendChild(lab);
   });
   updateTaskCount();
+  refreshTaskLocks();
+  startTaskTicker();
   state.quiz=null;
   // se já fez o desafio hoje e ainda não concluiu o check-in, restaura os pontos do quiz
   const jaConcluido=state.docs[state.who+"_"+TODAY];
@@ -1062,7 +1084,18 @@ function copyStudy(){
   try{ navigator.clipboard.writeText(t); $("#studyNote").textContent="Resumo copiado. Cole onde quiser estudar."; }
   catch(e){ $("#studyNote").textContent="Não foi possível copiar automaticamente."; }
 }
-function liveScore(){ return state.selectedTasks.size*PONTO_TAREFA + quizPoints(state.quiz&&state.quiz.done?state.quiz:null); }
+function isOnTime(i){
+  const hhmm=(state.taskTimes||[])[i]||""; if(!hhmm) return false;
+  const done=state.taskDoneAt&&state.taskDoneAt[i]; if(!done) return false;
+  const at=hhmmToTs(hhmm); if(at==null) return false;
+  return done>=(at-5*60*1000) && done<=(at+30*60*1000);
+}
+function liveScore(){
+  let s = state.who ? PONTO_LOGIN : 0;
+  (state.selectedTasks?[...state.selectedTasks]:[]).forEach(i=>{ s+=PONTO_TAREFA; if(isOnTime(i)) s+=PONTO_NO_HORARIO; });
+  s += quizPoints(state.quiz&&state.quiz.done?state.quiz:null);
+  return s;
+}
 function refreshLiveScore(){ if(!state.docs[state.who+"_"+TODAY]) $("#stToday").textContent=liveScore(); }
 
 /* ============ SUBMIT ============ */
@@ -1376,7 +1409,7 @@ async function saveVideo(){
 
 /* ============ CONFIG PERSIST ============ */
 async function saveConfig(){
-  const cfg={ team:state.team, video:state.video, pin:state.pin||"", empreendimentos:(state.emp||[]), aiUrl:(state.aiUrl||""), perfUrl:(state.perfUrl||""), prizes:(state.prizes||[]), updatedAt:Date.now() };
+  const cfg={ team:state.team, video:state.video, pin:state.pin||"", empreendimentos:(state.emp||[]), aiUrl:(state.aiUrl||""), perfUrl:(state.perfUrl||""), prizes:(state.prizes||[]), taskTimes:(state.taskTimes||[]), updatedAt:Date.now() };
   if(state.db){
     try{ await state.db.doc("config/app").set(cfg); }
     catch(e){
@@ -1397,10 +1430,11 @@ function applyConfig(d){
   if(perfAntes!==state.perfUrl) perf.data=null;
   const pui=$("#perfUrlInput"); if(pui && document.activeElement!==pui) pui.value=state.perfUrl;
   state.prizes=normPrizes(d&&d.prizes);
+  state.taskTimes=normTimes(d&&d.taskTimes);
   // restaura o modo gestor neste aparelho, se a senha bater
   if(state.pin && lsGet(LS_MGR,"")===state.pin) state.isManager=true;
   refreshMgrUI();
-  renderGate(); renderTeamPanel(); renderVideo(); renderEmpList(); renderPrizes(); renderPrizeConfig();
+  renderGate(); renderTeamPanel(); renderVideo(); renderEmpList(); renderPrizes(); renderPrizeConfig(); renderTaskConfig(); refreshTaskLocks();
   if(state.who){
     $("#myAv").textContent=iniciais(nomeById(state.who));
     $("#myName").textContent=nomeById(state.who);
@@ -1476,6 +1510,77 @@ async function resetPlacar(){
   }catch(e){ note.textContent="Não foi possível zerar agora. Tente novamente."; }
   btn.disabled=false; btn.textContent="Resetar placar";
   setTimeout(()=>{ note.textContent=""; },4000);
+}
+
+/* ============ HORÁRIOS DAS TAREFAS + BLOQUEIO + NOTIFICAÇÃO ============ */
+function normTimes(arr){ const out=[]; for(let i=0;i<TAREFAS.length;i++){ out[i]=(Array.isArray(arr)&&typeof arr[i]==="string")?arr[i]:""; } return out; }
+function hhmmToTs(hhmm){ const m=/^(\d{1,2}):(\d{2})$/.exec(String(hhmm||"").trim()); if(!m) return null; const d=new Date(); d.setHours(+m[1],+m[2],0,0); return d.getTime(); }
+function unlockTs(i){ const ts=hhmmToTs((state.taskTimes||[])[i]); return ts==null?null:ts-5*60*1000; }
+function refreshTaskLocks(){
+  const cont=$("#tasks"); if(!cont) return; const now=Date.now();
+  TAREFAS.forEach((txt,i)=>{
+    const lab=cont.querySelector('label.task[for="tk'+i+'"]'); if(!lab) return;
+    const cb=lab.querySelector('input'), badge=lab.querySelector('.task-time');
+    const hhmm=(state.taskTimes||[])[i]||"";
+    if(!hhmm){ if(cb) cb.disabled=false; lab.classList.remove("locked"); if(badge){ badge.className="task-time"; badge.textContent=""; } return; }
+    if(cb && cb.checked && isOnTime(i)){ if(badge){ badge.className="task-time ontime-t"; badge.textContent="✓ no horário +"+PONTO_NO_HORARIO; } lab.classList.remove("locked"); return; }
+    const u=unlockTs(i);
+    if(u!=null && now<u){ if(cb) cb.disabled=true; lab.classList.add("locked"); if(badge){ badge.className="task-time locked-t"; badge.textContent="🔒 "+hhmm; } }
+    else { if(cb) cb.disabled=false; lab.classList.remove("locked"); if(badge){ badge.className="task-time open-t"; badge.textContent="⏰ "+hhmm; } }
+  });
+  updateNotifyBtn();
+}
+let taskTicker=null;
+function startTaskTicker(){ stopTaskTicker(); taskTicker=setInterval(()=>{ refreshTaskLocks(); checkTaskNotifs(); },20000); }
+function stopTaskTicker(){ if(taskTicker){ clearInterval(taskTicker); taskTicker=null; } }
+function checkTaskNotifs(){
+  if(!state.who) return;
+  if(typeof Notification==="undefined" || Notification.permission!=="granted") return;
+  const now=Date.now();
+  TAREFAS.forEach((txt,i)=>{
+    const hhmm=(state.taskTimes||[])[i]||""; if(!hhmm) return;
+    const u=unlockTs(i); if(u==null) return;
+    if(now>=u && now < u+30*60*1000){
+      const key="notif_"+state.who+"_"+TODAY+"_"+i;
+      if(lsGet(key,"")==="1") return;
+      const cb=document.querySelector('#tasks label.task[for="tk'+i+'"] input');
+      if(cb && cb.checked){ lsSet(key,"1"); return; }
+      lsSet(key,"1");
+      notifyTask("Tarefa liberada: "+txt, "Faça agora no app. Horário "+hhmm+".");
+    }
+  });
+}
+function notifyTask(title,body){
+  try{
+    const opts={ body:body, icon:"icons/icon-192.png", badge:"icons/icon-192.png", tag:"ranking-tarefa", renotify:true };
+    if(navigator.serviceWorker && navigator.serviceWorker.ready){
+      navigator.serviceWorker.ready.then(reg=>{ try{ reg.showNotification(title,opts); }catch(_){ try{ new Notification(title,opts); }catch(__){} } }).catch(()=>{ try{ new Notification(title,opts); }catch(_){} });
+    } else { new Notification(title,opts); }
+  }catch(e){}
+}
+function ensureNotifyPermission(){
+  if(typeof Notification==="undefined"){ alert("Este dispositivo não suporta notificações no navegador. No iPhone, adicione o app à tela de início primeiro."); return; }
+  if(Notification.permission==="granted"){ updateNotifyBtn(); return; }
+  if(Notification.permission==="denied"){ alert("As notificações estão bloqueadas nas configurações do navegador para este site. Libere lá e tente de novo."); return; }
+  Notification.requestPermission().then(()=>{ updateNotifyBtn(); if(Notification.permission==="granted") notifyTask("Notificações ativadas","Você será avisado na hora de cada tarefa."); });
+}
+function updateNotifyBtn(){
+  const b=$("#notifBtn"); if(!b) return;
+  const supp=(typeof Notification!=="undefined");
+  const granted=supp && Notification.permission==="granted";
+  const temHorario=(state.taskTimes||[]).some(h=>h);
+  b.classList.toggle("hide", !supp || granted || !temHorario);
+}
+function renderTaskConfig(){
+  const box=$("#taskTimeRows"); if(!box) return; box.innerHTML="";
+  TAREFAS.forEach((txt,i)=>{
+    const row=document.createElement("div"); row.className="tt-row";
+    row.innerHTML=`<span class="tt-txt">${escapeHtml(txt)}</span><input type="time" class="tt-time">`;
+    const inp=row.querySelector(".tt-time"); inp.value=(state.taskTimes||[])[i]||"";
+    let tmr=null;
+    inp.addEventListener("change",()=>{ if(!Array.isArray(state.taskTimes)) state.taskTimes=normTimes(state.taskTimes); state.taskTimes[i]=inp.value; refreshTaskLocks(); clearTimeout(tmr); tmr=setTimeout(()=>{ saveConfig(); const n=$("#taskTimeNote"); if(n){ n.textContent="Horários salvos."; setTimeout(()=>{ n.textContent=""; },1500); } },400); });
+    box.appendChild(row);
+  });
 }
 
 /* ============ PRÊMIOS DO RANKING ============ */
@@ -1902,7 +2007,7 @@ function perfBind(){
 
 /* ============ BOOT ============ */
 function bootUI(){
-  initDate(); initTheme(); renderGate(); renderTeamPanel(); renderVideo(); renderPrizes(); renderPrizeConfig();
+  initDate(); initTheme(); renderGate(); renderTeamPanel(); renderVideo(); renderPrizes(); renderPrizeConfig(); renderTaskConfig();
   $("#switchBtn").addEventListener("click",logout);
   $("#gateOnlyEnter").addEventListener("click",gateEnterByCode);
   $("#gateOnlyCode").addEventListener("keydown",e=>{ if(e.key==="Enter") gateEnterByCode(); });
@@ -1919,6 +2024,7 @@ function bootUI(){
   $("#resetPlacarBtn").addEventListener("click",resetPlacar);
   $("#savePinBtn").addEventListener("click",changePin);
   $("#aiFetchBtn").addEventListener("click",aiFetch);
+  $("#notifBtn").addEventListener("click",ensureNotifyPermission);
   $("#addBtn").addEventListener("click",addCorretor);
   $("#newName").addEventListener("keydown",e=>{ if(e.key==="Enter") addCorretor(); });
   $("#videoEditBtn").addEventListener("click",()=>{ const e=$("#videoEdit"); e.classList.toggle("hide"); if(!e.classList.contains("hide")) $("#videoInput").value=state.video||""; });
