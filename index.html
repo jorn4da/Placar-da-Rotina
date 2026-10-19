@@ -100,7 +100,12 @@
   .sec-ic{width:26px;height:26px;color:var(--accent);flex:none}
   .tag-ic{width:16px;height:16px;flex:none;color:rgba(243,247,250,0.85);vertical-align:-3px;margin-right:6px}
   .chip-ic{width:15px;height:15px;flex:none}
-  .avatar{width:40px;height:40px;flex:none;border-radius:var(--radius-full);background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#F3F7FA;display:grid;place-items:center;font-family:var(--font-title);font-weight:700;font-size:0.9rem}
+  .avatar{width:40px;height:40px;flex:none;border-radius:var(--radius-full);background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#F3F7FA;display:grid;place-items:center;font-family:var(--font-title);font-weight:700;font-size:0.9rem;overflow:hidden}
+  .av-img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+  .pod-av,.rank-av{overflow:hidden}
+  .ed-foto{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+  .ef-prev{width:48px;height:48px;flex:none;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#F3F7FA;display:grid;place-items:center;font-family:var(--font-title);font-weight:700;font-size:0.9rem}
+  .ef-prev img{width:100%;height:100%;object-fit:cover}
   .pick .avatar{width:54px;height:54px;font-size:1.12rem}
 
   .grid{display:grid;grid-template-columns:1.55fr 1fr;gap:22px;margin-top:22px;align-items:start}
@@ -899,7 +904,7 @@ function markQuizDone(q){
   }catch(e){}
 }
 function buildCheckin(){
-  $("#myAv").textContent=iniciais(nomeById(state.who));
+  $("#myAv").innerHTML=avatarHtmlById(state.who);
   $("#myName").textContent=nomeById(state.who);
   const md=$("#maxDia"); if(md) md.textContent="/"+MAX_DIA();
   state.email=lsGet("placar_email_"+state.who,"")||"";
@@ -1171,7 +1176,7 @@ function renderPodium(rows){
     const div=document.createElement("div");
     if(r && (r.s.week>0 || r.s.total>0)){
       div.className="pod"+(r.c.id===state.who?" me":"");
-      div.innerHTML=`${medalImg(i+1,"pod")}<span class="pod-av">${iniciais(r.c.nome)}</span><div class="pod-info"><div class="pod-name">${primeiro(r.c.nome)}</div><div class="pod-pts">${r.s.week} pts na semana</div></div>`;
+      div.innerHTML=`${medalImg(i+1,"pod")}<span class="pod-av">${avatarHtml(r.c)}</span><div class="pod-info"><div class="pod-name">${primeiro(r.c.nome)}</div><div class="pod-pts">${r.s.week} pts na semana</div></div>`;
     } else {
       div.className="pod empty";
       div.innerHTML=`${medalImg(i+1,"pod")}<div class="pod-info"><div class="pod-name">Em aberto</div><div class="pod-pts">sem pontos ainda</div></div>`;
@@ -1189,7 +1194,7 @@ function renderRanking(rows){
     item.className="rank-item"+(r.c.id===state.who?" me":"");
     const flame=r.s.streak>0?`<svg class="mini-flame" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c1 3-1 4-2 6-1 2 0 3 0 3s-2-1-2-3c-2 2-3 4-3 7a7 7 0 0 0 14 0c0-4-3-6-4-9-1 2-2 2-3 1 1-2 2-4 0-6z"/></svg> ${r.s.streak}d`:"sem sequência";
     const posEl= mc? medalImg(pos,"rank") : `<span class="num">${pos}</span>`;
-    item.innerHTML=`<div class="pos">${posEl}</div><div class="rank-av">${iniciais(r.c.nome)}</div>
+    item.innerHTML=`<div class="pos">${posEl}</div><div class="rank-av">${avatarHtml(r.c)}</div>
       <div class="rank-main"><div class="rank-name">${r.c.nome}${r.c.id===state.who?" (você)":""}</div>
       <div class="rank-meta"><span class="today-dot ${r.s.todayDone?"on":""}"></span>${r.s.todayDone?"fez hoje":"pendente hoje"} &middot; ${flame}</div></div>
       <div class="rank-pts"><div class="p">${r.s.week}</div><div class="l">pts</div></div>`;
@@ -1219,14 +1224,15 @@ function renderTeamPanel(){
     const planNome=perfNomePlanilha(c);
     const planTag= planNome ? `<small class="plan-tag">Planilha: ${escapeHtml(perfTitle(planNome))}${c.planilha?"":" (automático)"}</small>` : `<small class="plan-tag no">Sem vínculo com a planilha</small>`;
     const acessoTxt=fmtAcesso(lastAccessOf(c.id));
-    row.innerHTML=`<span class="avatar" style="width:30px;height:30px;font-size:0.72rem">${iniciais(c.nome)}</span><span class="nm">${escapeHtml(c.nome)}${planTag}<small class="last-acesso">Último acesso: ${acessoTxt}</small></span><span class="code-status ${c.pin?"has":"no"}">${c.pin?"com código":"sem código"}</span>`;
+    row.innerHTML=`<span class="avatar" style="width:30px;height:30px;font-size:0.72rem">${avatarHtml(c)}</span><span class="nm">${escapeHtml(c.nome)}${planTag}<small class="last-acesso">Último acesso: ${acessoTxt}</small></span><span class="code-status ${c.pin?"has":"no"}">${c.pin?"com código":"sem código"}</span>`;
     const codeBtn=document.createElement("button"); codeBtn.type="button"; codeBtn.className="del-btn"; codeBtn.textContent="Código / Zap";
     const del=document.createElement("button"); del.type="button"; del.className="del-btn"; del.textContent="Excluir";
     row.appendChild(codeBtn); row.appendChild(del);
     const edit=document.createElement("div"); edit.className="code-row hide";
     const planOpts=(perf.nomes||[]).map(n=>`<option value="${escapeHtml(n)}"${c.planilha===n?" selected":""}>${escapeHtml(perfTitle(n))}</option>`).join("");
     const autoNome=c.planilha?"":perfNomePlanilha(c);
-    edit.innerHTML=`<label class="ed-lbl">Nome na planilha<select class="ed-plan"><option value="">${autoNome?"Automático ("+escapeHtml(perfTitle(autoNome))+")":"Escolha o nome na planilha"}</option>${planOpts}${c.planilha && (perf.nomes||[]).indexOf(c.planilha)<0?`<option value="${escapeHtml(c.planilha)}" selected>${escapeHtml(perfTitle(c.planilha))}</option>`:""}</select></label>`+
+    edit.innerHTML=`<div class="ed-foto"><div class="ef-prev">${c.foto?`<img src="${c.foto}" alt="">`:`<span>${iniciais(c.nome)}</span>`}</div><label class="add-btn" style="cursor:pointer">${c.foto?"Trocar foto":"Adicionar foto"}<input type="file" accept="image/*" class="ed-foto-file" style="display:none"></label>${c.foto?`<button class="del-btn ed-foto-clear" type="button">Remover foto</button>`:``}</div>`+
+      `<label class="ed-lbl">Nome na planilha<select class="ed-plan"><option value="">${autoNome?"Automático ("+escapeHtml(perfTitle(autoNome))+")":"Escolha o nome na planilha"}</option>${planOpts}${c.planilha && (perf.nomes||[]).indexOf(c.planilha)<0?`<option value="${escapeHtml(c.planilha)}" selected>${escapeHtml(perfTitle(c.planilha))}</option>`:""}</select></label>`+
       `<input type="text" class="ed-fone" placeholder="WhatsApp com DDD (ex: 21 99999-9999)" value="${escapeHtml(c.fone||"")}">`+
       `<div class="add-row"><input type="text" class="ed-code" placeholder="Definir código de acesso"><button class="add-btn ed-save" type="button">Salvar</button></div>`+
       `<button class="wa-btn" type="button">Salvar e enviar no WhatsApp</button>`+
@@ -1234,6 +1240,9 @@ function renderTeamPanel(){
       `<div class="save-note ed-note"></div>`;
     codeBtn.addEventListener("click",()=>edit.classList.toggle("hide"));
     const foneI=edit.querySelector(".ed-fone"), codeI=edit.querySelector(".ed-code"), note=edit.querySelector(".ed-note"), planI=edit.querySelector(".ed-plan");
+    const fotoFile=edit.querySelector(".ed-foto-file"), fotoClear=edit.querySelector(".ed-foto-clear");
+    fotoFile.addEventListener("change",e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; note.textContent="Processando foto..."; fileToThumb(f,256,durl=>{ if(!durl){ note.textContent="Não consegui ler a imagem."; return; } setCorretorFoto(c.id,durl); note.textContent="Foto salva."; }); });
+    if(fotoClear) fotoClear.addEventListener("click",()=>{ setCorretorFoto(c.id,""); });
     edit.querySelector(".ed-save").addEventListener("click",()=>{
       const code=codeI.value.trim(), fone=foneI.value.trim();
       if(code && code.length<3){ note.textContent="Código de ao menos 3 caracteres."; return; }
@@ -1350,6 +1359,15 @@ async function resetCodigo(id){
   await saveConfig();
   renderTeamPanel(); if(!state.db) renderGate();
 }
+function avatarHtml(c){ return (c&&c.foto) ? `<img class="av-img" src="${c.foto}" alt="">` : iniciais(c?c.nome:""); }
+function avatarHtmlById(id){ return avatarHtml(state.team.find(c=>c.id===id)); }
+async function setCorretorFoto(id,foto){
+  state.team=state.team.map(c=>{ if(c.id!==id) return c; const n=Object.assign({},c); if(foto) n.foto=foto; else delete n.foto; return n; });
+  await saveConfig();
+  renderTeamPanel(); renderAll();
+  if(state.who===id){ const a=$("#myAv"); if(a) a.innerHTML=avatarHtmlById(id); }
+  if(!state.db) renderGate();
+}
 /* Último acesso: registra no login e lê do Firestore (coleção checkins, doc _acesso_<id>, ignorado no ranking por usar 'cid' e não 'corretorId') */
 function recordAccess(id){
   const rec={ acesso:true, cid:id, nome:nomeById(id), last:Date.now() };
@@ -1436,7 +1454,7 @@ function applyConfig(d){
   refreshMgrUI();
   renderGate(); renderTeamPanel(); renderVideo(); renderEmpList(); renderPrizes(); renderPrizeConfig(); renderTaskConfig(); refreshTaskLocks();
   if(state.who){
-    $("#myAv").textContent=iniciais(nomeById(state.who));
+    $("#myAv").innerHTML=avatarHtmlById(state.who);
     $("#myName").textContent=nomeById(state.who);
     renderAll();
   } else { restoreLogin(); }
