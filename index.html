@@ -64,8 +64,8 @@
   }
 
   *{box-sizing:border-box}
-  html{font-size:16px}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+  html{font-size:16px;background:var(--bg)}
+  body{margin:0;background:transparent;color:var(--ink);font-family:var(--font-body);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
   .wrap{max-width:1120px;margin:0 auto;width:100%;flex:1 0 auto;display:flex;flex-direction:column;padding-inline:16px;padding-block:0 32px}
   a{color:var(--accent)}
   h1,h2,h3{font-family:var(--font-title);line-height:1.15;margin:0}
@@ -75,6 +75,8 @@
 
   .topbar{background:linear-gradient(135deg,#062E6E 0%,#1E1C1D 100%);color:var(--on-brand)}
   .topbar-inner{max-width:1120px;margin:0 auto;padding:22px 16px 26px;display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
+  .bg-video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;pointer-events:none}
+  .bg-overlay{position:fixed;inset:0;background:rgba(10,12,16,0.80);z-index:-1;pointer-events:none}
   .brand-block{display:flex;align-items:center;gap:16px}
   .brand-logo{width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid rgba(243,247,250,0.28);flex:none;box-shadow:0 2px 12px rgba(0,0,0,0.4)}
   @media (max-width:560px){.brand-logo{width:52px;height:52px}}
@@ -444,6 +446,11 @@
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+
+<video class="bg-video" id="bgVideo" autoplay muted loop playsinline preload="auto" poster="hero-poster.jpg" aria-hidden="true">
+  <source src="hero-bg.mp4" type="video/mp4">
+</video>
+<div class="bg-overlay" aria-hidden="true"></div>
 
 <div class="topbar">
   <div class="topbar-inner">
